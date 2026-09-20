@@ -92,12 +92,17 @@ function liveWindowOpen(){
 }
 async function liveRefreshTick(){
  if(document.visibilityState==='hidden'||!state.boot||state.busy||state.liveRefreshing)return;
+ if(!['round','results','mine','stats','standings','admin'].includes(state.view))return;
  const adminRace=state.view==='admin'&&Number(state.admin?.sourceRaceActive||0)>0;
- if(!adminRace&&!liveWindowOpen())return;
- if(!['round','results','mine','standings','admin'].includes(state.view))return;
- state.liveRefreshing=true;try{try{await api('/live/pulse',{});}catch(e){console.warn('KZM live pulse:',e?.message||e);}await load(state.view,true);}finally{state.liveRefreshing=false;}
+ state.liveRefreshing=true;
+ try{
+  if(adminRace||liveWindowOpen()){
+   try{await api('/live/pulse',{});}catch(e){console.warn('KZM live pulse:',e?.message||e);}
+  }
+  await load(state.view,true);
+ }finally{state.liveRefreshing=false;}
 }
-setInterval(liveRefreshTick,20000);
+setInterval(liveRefreshTick,15000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')liveRefreshTick();});
 
 function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.away_id);return `<div class="fixture ${mine?'my-fixture':''}"><div class="home">${esc(f.home_name)}${clubBadge(f.home_name,'fixture-badge')}</div><div class="score">${score(f)}<small>${f.kickoff?esc(formatTime(f.kickoff)):esc(f.status)}</small></div><div class="away">${clubBadge(f.away_name,'fixture-badge')}${esc(f.away_name)}</div></div>`;}
