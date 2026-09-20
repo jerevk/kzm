@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
-const state={boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushConfig:null,pushInit:null,pushOS:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
+const state={boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushConfig:null,pushInit:null,pushOS:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
 const formatTime=s=>s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',dateStyle:'short',timeStyle:'short'}).format(new Date(s*1000)):'Nije postavljen';
 const score=f=>f.home_score===null||f.away_score===null?'vs':`${f.home_score} : ${f.away_score}`;
 const empty=msg=>`<div class="empty">${esc(msg)}</div>`;
@@ -260,6 +260,15 @@ function registrationRequestCard(d){
  }).join('');
  return `<div class="card"><div class="card-head"><h2>Zahtjevi za registraciju</h2><span class="pill ${pending?'pink':approved?'green':''}">${pending} čeka · ${approved} odobreno</span></div><p class="fine"><strong>Nitko tko se sam registrira ne može odmah igrati.</strong> Prvo moraš odobriti zahtjev. I nakon odobrenja igrač ostaje neaktivan do sljedećeg kruga; sustav ga automatski aktivira tek kada završi prethodni krug. Odbijeni zahtjev nema pristup igri.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Status</th><th>Najraniji ulazak</th><th>Zahtjev</th><th>Odluka</th></tr></thead><tbody>${body||'<tr><td colspan="5">Nema zahtjeva na čekanju.</td></tr>'}</tbody></table></div></div>`;
 }
+function pushDiagnosticsHtml(){
+ const rows=state.pushDiagnostics;
+ const head=`<div class="card-head"><h2>Push obavijesti</h2><button class="small-btn" data-action="push-diagnostics">PROVJERI PRETPLATE</button></div>`;
+ if(!rows)return `<div class="card">${head}<p class="fine">Provjera cita OneSignal stanje po KZM external ID-u. Ne salje obavijest i ne mijenja pretplate.</p><div class="empty">Klikni PROVJERI PRETPLATE da vidis tko stvarno ima aktivan push uredjaj povezan s KZM racunom.</div></div>`;
+ const ok=rows.filter(x=>Number(x.enabledPush)>0).length;
+ const body=rows.map(x=>{const good=Number(x.enabledPush)>0,status=x.error?`<span class="pill pink">GRESKA</span>`:good?`<span class="pill green">${x.enabledPush} AKTIVAN</span>`:`<span class="pill">NEMA AKTIVNOG</span>`;const note=x.error?esc(x.error):x.found?`${Number(x.totalPush||0)} push zapisa${x.types?.length?` · ${esc(x.types.join(', '))}`:''}`:'External ID nije pronadjen u OneSignalu';return `<tr><td><strong>${esc(x.name)}</strong></td><td>${status}<div class="fine">${note}</div></td><td>${good?`<button class="small-btn" data-push-test-player="${attr(x.playerId)}">TEST</button>`:'-'}</td></tr>`;}).join('');
+ return `<div class="card">${head}<p class="fine"><strong>${ok}/${rows.length}</strong> aktivnih igraca trenutno ima barem jednu aktivnu OneSignal push pretplatu povezanu s KZM external ID-em.</p><div class="table-wrap"><table><thead><tr><th>Igrac</th><th>OneSignal</th><th>Test</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+
 function renderAdmin(){
  const d=state.admin;
  const players=d.players||[],teams=(state.boot?.teams||[]).slice().sort((x,y)=>x.name.localeCompare(y.name,'hr'));
@@ -291,6 +300,7 @@ function renderAdmin(){
   </form><div id="admin-pick-current" class="fine" style="margin-top:12px"></div></div>`+
  `<div class="card"><div class="card-head"><h2>Dodaj igraca</h2><span class="pill green">${players.filter(p=>p.active).length} aktivnih</span></div><form id="player-form" class="form-grid"><label>Ime i prezime<input name="name" required maxlength="80"></label><label>PIN<input name="password" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password"></label><div><label>&nbsp;</label><button class="primary full">DODAJ IGRACA</button></div></form></div>`+
  `<div class="card"><div class="card-head"><h2>Igraci i placanja</h2><button data-action="refresh" class="small-btn">OSVJEZI</button></div><div class="admin-table-wrap"><table><thead><tr><th>Igrac</th>${[1,2,3,4].map(c=>`<th>Krug ${c}</th>`).join('')}<th>Akcije</th></tr></thead><tbody>${playerRows}</tbody></table></div></div>`+
+ pushDiagnosticsHtml()+
  sourceRaceHtml(d)+
  `<div class="card"><div class="card-head"><h2>Sustav i raspored</h2><span class="pill">D1</span></div><div class="actions"><button class="secondary" data-view="system">KLUBOVI, ROKOVI I REZULTATI</button><button data-action="toggle-picks" class="${d.settings.picks_enabled==='1'?'danger':'primary'}">${d.settings.picks_enabled==='1'?'ZAUSTAVI ODABIRE':'OMOGUCI ODABIRE'}</button><button data-action="sync">RUČNO OSVJEŽI CIJELI RASPORED</button><button data-action="espn-test" class="secondary">TEST ESPN</button><button data-action="push-test" class="secondary">TEST PUSH</button></div><p class="fine"><strong>Auto live:</strong> svake minute i dodatno preko browser live-pulsea. ESPN radi neovisno o football-data rate limitu; football-data.org ostaje fallback i puni raspored.<br>Zadnji live dohvat: ${formatTime(Number(d.settings.last_sync)||null)}${d.settings.last_sync_source?` · izvor: <strong>${esc(d.settings.last_sync_source)}</strong>`:''}</p>${d.settings.last_sync_error?`<div class="error">${esc(d.settings.last_sync_error)}</div>`:''}<details><summary>Zapis zadnjih promjena</summary><div class="table-wrap"><table>${d.audit.map(a=>`<tr><td>${formatTime(a.created_at)}</td><td>${esc(a.actor||'Sustav')}</td><td>${esc(a.action)}</td></tr>`).join('')}</table></div></details></div>`;
  syncAdminPickEditor();
@@ -349,6 +359,8 @@ document.addEventListener('click',async e=>{
   if(a==='toggle-picks'){const enabled=state.admin.settings.picks_enabled!=='1';if(!confirm(enabled?'Omoguciti odabire u produkcijskoj bazi?':'Zaustaviti spremanje odabira?'))return;await api('/admin/settings',{picksEnabled:enabled});state.admin.settings.picks_enabled=enabled?'1':'0';state.boot.settings.picks_enabled=enabled?'1':'0';nav();renderAdmin();toast('Postavka spremljena.');}
   if(a==='sync'){toast('Dohvacam nogometni API...');const d=await api('/admin/sync',{});toast(`Spremljeno: ${d.fixtures} utakmica.`);state.boot=await api('/bootstrap');load('admin');}
   if(a==='espn-test'){toast('Testiram ESPN iz Cloudflare Workera...');const d=await api('/admin/espn-test',{});toast(`ESPN radi · dohvaćeno događaja: ${d.events}.`);}
+  if(a==='push-diagnostics'){toast('Provjeravam OneSignal pretplate...');const d=await api('/admin/push-diagnostics');state.pushDiagnostics=d.rows||[];renderAdmin();toast(`Aktivan push: ${d.withEnabledPush}/${d.activePlayers} igrača.`);}
+  if(b.dataset.pushTestPlayer){const p=players.find(x=>x.id===b.dataset.pushTestPlayer);const d=await api('/admin/push-test-player',{playerId:b.dataset.pushTestPlayer});toast(`Test push poslan: ${p?.name||d.player?.name||'igrač'}.`);}
   if(a==='push-test'){await api('/admin/push-test',{});toast('Test push je poslan na tvoj račun.');}
   if(a==='recalculate'){if(!confirm(`Zamijeniti sacuvane povijesne bodove kola ${state.round} novim izracunom iz rasporeda? Prvo napravi backup.`))return;await api(`/admin/rounds/${state.round}/recalculate`,{confirm:true});toast('Bodovi sada koriste novi izracun.');}
  });
