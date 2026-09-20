@@ -189,8 +189,8 @@ check('Deploy switches Cloudflare cron to every minute without hardcoding projec
  const d=fs.readFileSync(new URL('../scripts/deploy.mjs',import.meta.url),'utf8');assert(d.includes("const wanted='* * * * *'"));assert(d.includes("saveJSON('wrangler.json',config)"));assert(!d.includes('kzm-novi-d9ad28'));
 });
 
-check('Frontend silently refreshes D1 every 20 seconds only while a match is in its live window',()=>{
- const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,20000)'));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN radi neovisno o football-data rate limitu'));
+check('Frontend auto refreshes visible data every 15 seconds and polls live sources only when needed',()=>{
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,15000)'));assert(app.includes("['round','results','mine','stats','standings','admin']"));assert(app.includes("if(adminRace||liveWindowOpen())"));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN radi neovisno o football-data rate limitu'));
 });
 
 check('Admin panel exposes source-race diagnostics and live fallback status',async()=>{const x=await fresh();try{
