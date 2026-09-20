@@ -1,7 +1,8 @@
+import {createPushManager} from './js/push.js';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
-const state={boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushConfig:null,pushInit:null,pushOS:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
+const state={boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
 const formatTime=s=>s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',dateStyle:'short',timeStyle:'short'}).format(new Date(s*1000)):'Nije postavljen';
 const score=f=>f.home_score===null||f.away_score===null?'vs':`${f.home_score} : ${f.away_score}`;
 const empty=msg=>`<div class="empty">${esc(msg)}</div>`;
@@ -62,35 +63,15 @@ function nav(){
  const paid=state.boot.payments.find(p=>p.cycle===state.cycle)?.paid;if(paid===0)notices.push('CLANARINA / UPLATA ZA OVAJ KRUG NIJE OZNACENA KAO PLACENA');
  const box=$('#safety-banner');box.textContent=notices.join('  |  ');box.hidden=!notices.length;
 }
-const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function withTimeout(promise,ms,message){let timer;try{return await Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),ms);})]);}finally{clearTimeout(timer);}}
-async function pushReady(){
- if(state.pushOS)return state.pushOS;
- if(state.pushInit)return state.pushInit;
- state.pushInit=(async()=>{
-  const cfg=await api('/push/config');state.pushConfig=cfg;if(!cfg.configured)return null;
-  return await new Promise((resolve,reject)=>{
-   let finished=false;const finish=(fn,value)=>{if(finished)return;finished=true;clearTimeout(timer);fn(value);};
-   const timer=setTimeout(()=>finish(reject,new Error('OneSignal se nije učitao. Osvježi stranicu i pokušaj ponovno.')),12000);
-   window.OneSignalDeferred=window.OneSignalDeferred||[];
-   window.OneSignalDeferred.push(async OneSignal=>{try{await withTimeout(OneSignal.init({appId:cfg.appId,serviceWorkerPath:'OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'},autoResubscribe:true}),12000,'OneSignal inicijalizacija je istekla.');state.pushOS=OneSignal;finish(resolve,OneSignal);}catch(e){finish(reject,e);}});
-  });
- })();
- try{return await state.pushInit;}catch(e){state.pushOS=null;throw e;}finally{state.pushInit=null;}
-}
-function updatePushButton(){const b=$('#push-nav');if(!b)return;const os=state.pushOS;if(!state.pushConfig?.configured){b.innerHTML='<span class="nav-icon">🔕</span> Push nije postavljen';return;}const on=!!os?.User?.PushSubscription?.optedIn;b.innerHTML=`<span class="nav-icon">${on?'🔔':'🔕'}</span> ${on?'Obavijesti uključene':'Uključi obavijesti'}`;}
-async function initPushUser(){try{const os=await pushReady();if(os&&state.boot?.user?.id)await withTimeout(os.login(state.boot.user.id),8000,'OneSignal prijava je istekla.');updatePushButton();}catch(e){console.warn('KZM push init:',e?.message||e);updatePushButton();}}
-async function togglePush(){
- const os=await pushReady();if(!os)throw new Error('Push još nije konfiguriran.');if(!os.Notifications.isPushSupported())throw new Error('Ovaj preglednik ne podržava web push.');
- if(os.User.PushSubscription.optedIn){if(!confirm('Isključiti push obavijesti na ovom uređaju?'))return;await withTimeout(os.User.PushSubscription.optOut(),10000,'Isključivanje obavijesti je isteklo.');updatePushButton();toast('Push obavijesti su isključene na ovom uređaju.');return;}
- await withTimeout(os.login(state.boot.user.id),8000,'OneSignal prijava je istekla.');
- if(typeof Notification!=='undefined'&&Notification.permission==='denied')throw new Error('Obavijesti su blokirane u pregledniku. U postavkama stranice postavi Obavijesti na Dopusti.');
- if(typeof Notification!=='undefined'&&Notification.permission!=='granted')await withTimeout(os.Notifications.requestPermission(),15000,'Preglednik nije prikazao zahtjev za obavijesti.');
- else if(!os.Notifications.permission)await withTimeout(os.Notifications.requestPermission(),15000,'Preglednik nije prikazao zahtjev za obavijesti.');
- if(typeof Notification!=='undefined'&&Notification.permission!=='granted')throw new Error('Obavijesti nisu dopuštene za ovu stranicu.');
- await withTimeout(os.User.PushSubscription.optIn(),10000,'OneSignal pretplata je istekla.');updatePushButton();if(!os.User.PushSubscription.optedIn)throw new Error('OneSignal nije uspio uključiti obavijesti na ovom uređaju.');toast('Push obavijesti su uključene.');
-}
-function pushLogout(){const os=state.pushOS;state.pushOS=null;state.pushInit=null;state.pushConfig=null;if(!os||typeof os.logout!=='function')return;try{Promise.race([Promise.resolve(os.logout()),wait(1500)]).catch(()=>{});}catch{}}
+const pushManager=createPushManager({
+ api,
+ getPlayerId:()=>state.boot?.user?.id||null,
+ getButton:()=>$('#push-nav'),
+ toast
+});
+const initPushUser=()=>pushManager.initUser();
+const togglePush=()=>pushManager.toggle();
+const pushLogout=()=>pushManager.logout();
 async function enter(){state.boot=await api('/bootstrap');state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;state.scope=String(state.cycle);state.editingPick=null;$('#user-name').textContent=state.boot.user.name;$('#drawer-user').textContent=state.boot.user.name;$('#loading').hidden=true;$('#login').hidden=true;$('#app').hidden=false;await load('round');if(state.boot.wakeUp?.active)setTimeout(()=>showWakeUpPopup(state.boot.wakeUp.message||'Magarac jedan probudi se!'),120);setTimeout(liveRefreshTick,1000);initPushUser();}
 function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat</label><select class="scope" aria-label="Odabir kruga" id="scope">${[1,2,3,4].map(c=>`<option value="${c}" ${state.scope===String(c)?'selected':''}>Krug ${c} · kola ${state.boot.cycles.find(x=>x.id===c)?.from||''}–${state.boot.cycles.find(x=>x.id===c)?.to||''}</option>`).join('')}<option value="all" ${state.scope==='all'?'selected':''}>Ukupna tablica · sva 4 kruga</option></select></div>`;}
 async function load(view=state.view,silent=false){
