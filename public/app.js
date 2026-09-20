@@ -360,7 +360,7 @@ document.addEventListener('click',async e=>{
   if(a==='sync'){toast('Dohvacam nogometni API...');const d=await api('/admin/sync',{});toast(`Spremljeno: ${d.fixtures} utakmica.`);state.boot=await api('/bootstrap');load('admin');}
   if(a==='espn-test'){toast('Testiram ESPN iz Cloudflare Workera...');const d=await api('/admin/espn-test',{});toast(`ESPN radi · dohvaćeno događaja: ${d.events}.`);}
   if(a==='push-diagnostics'){toast('Provjeravam OneSignal pretplate...');const d=await api('/admin/push-diagnostics');state.pushDiagnostics=d.rows||[];renderAdmin();toast(`Aktivan push: ${d.withEnabledPush}/${d.activePlayers} igrača.`);}
-  if(b.dataset.pushTestPlayer){const p=players.find(x=>x.id===b.dataset.pushTestPlayer);const d=await api('/admin/push-test-player',{playerId:b.dataset.pushTestPlayer});toast(`Test push poslan: ${p?.name||d.player?.name||'igrač'}.`);}
+  if(b.dataset.pushTestPlayer){const playerId=String(b.dataset.pushTestPlayer||'');const p=(state.admin?.players||[]).find(x=>String(x.id)===playerId);const d=await api('/admin/push-test-player',{playerId});toast(`Test push poslan: ${p?.name||d.player?.name||'igrač'}.`);}
   if(a==='push-test'){await api('/admin/push-test',{});toast('Test push je poslan na tvoj račun.');}
   if(a==='recalculate'){if(!confirm(`Zamijeniti sacuvane povijesne bodove kola ${state.round} novim izracunom iz rasporeda? Prvo napravi backup.`))return;await api(`/admin/rounds/${state.round}/recalculate`,{confirm:true});toast('Bodovi sada koriste novi izracun.');}
  });
