@@ -97,7 +97,7 @@ export async function testEspnSource(now=Math.floor(Date.now()/1000)){
 
 function espnStatus(c){
  const t=c?.status?.type||{},name=String(t.name||'').toUpperCase(),state=String(t.state||'').toLowerCase();
- if(t.completed===true||name.includes('FULL_TIME')||name.includes('FINAL'))return 'FINISHED';
+ if(t.completed===true||state==='post'||name.includes('FULL_TIME')||name.includes('FINAL'))return 'FINISHED';
  if(name.includes('POSTPON'))return 'POSTPONED';
  if(name.includes('CANCEL'))return 'CANCELLED';
  if(name.includes('SUSPEND'))return 'SUSPENDED';
