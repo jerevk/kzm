@@ -88,6 +88,13 @@ async function fetchEspn(now){
  return response.json();
 }
 
+
+export async function testEspnSource(now=Math.floor(Date.now()/1000)){
+ const raw=await fetchEspn(now);
+ const events=Array.isArray(raw?.events)?raw.events:[];
+ return {ok:true,source:'ESPN',events:events.length,checkedAt:Math.floor(Date.now()/1000)};
+}
+
 function espnStatus(c){
  const t=c?.status?.type||{},name=String(t.name||'').toUpperCase(),state=String(t.state||'').toLowerCase();
  if(t.completed===true||name.includes('FULL_TIME')||name.includes('FINAL'))return 'FINISHED';

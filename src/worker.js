@@ -1,7 +1,7 @@
 import {CYCLES,cycleFor,normalize,rank,AppError,assert,integer,cleanName,passwordValid,pinValid,scopeRange} from './rules.js';
 import {authenticate,requireAdmin,login,passwordHash,randomHex,sha256,equal,rateLimit,sessionCookie,tokenFrom} from './auth.js';
 import {importDataset} from './import-data.js';
-import {syncFootball,sourceRaceData} from './football.js';
+import {syncFootball,sourceRaceData,testEspnSource} from './football.js';
 const now=()=>Math.floor(Date.now()/1000);
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 const stmt=(env,sql,...args)=>env.DB.prepare(sql).bind(...args);
@@ -284,6 +284,7 @@ export async function handle(request,env){
  if(path==='/api/admin/import-status'&&method==='GET'){const record=await env.DB.prepare("SELECT summary FROM import_history WHERE id='initial'").first();const f=await env.DB.prepare("SELECT value FROM meta WHERE key='import_fingerprint'").first();return json({ok:true,imported:!!record,fingerprint:f?.value||null,summary:record?JSON.parse(record.summary):null});}
  if(path==='/api/admin/import'&&method==='POST')return json(await importDataset(env,u,await bodyJson(request,1800000)));
  if(path==='/api/admin/sync'&&method==='POST'){await bodyJson(request);return json(await syncFootball(env,true));}
+ if(path==='/api/admin/espn-test'&&method==='POST'){await bodyJson(request);return json(await testEspnSource());}
  if(path==='/api/admin/push-test'&&method==='POST'){await bodyJson(request);assert(pushConfigured(env),'Push nije konfiguriran na ovom Workeru.',503);await pushSend(env,[u.id],'🔔 KZM test','Push obavijesti rade za tvoj KZM račun.','push-test-'+Date.now());return json({ok:true});}
  const registrationMatch=path.match(/^\/api\/admin\/registrations\/([a-zA-Z0-9-]+)$/);
  if(registrationMatch&&method==='POST'){

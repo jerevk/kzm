@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import worker,{processPush} from '../src/worker.js';import {fresh,rawSnapshot,ADMIN_PASSWORD,USER_PASSWORD} from './helpers.mjs';
-import {scorePick,cycleFor,rank,normalize} from '../src/rules.js';import {passwordHash} from '../src/auth.js';import {prepareSnapshot} from '../scripts/prepare-data.mjs';import {mapMatches,syncFootball,shouldPollFixture} from '../src/football.js';
+import {scorePick,cycleFor,rank,normalize} from '../src/rules.js';import {passwordHash} from '../src/auth.js';import {prepareSnapshot} from '../scripts/prepare-data.mjs';import {mapMatches,syncFootball,shouldPollFixture,testEspnSource} from '../src/football.js';
 const tests=[];const check=(name,fn)=>test(name,fn);
 check('Scoring preserves home/away/draw/double rules',()=>{assert.equal(scorePick(3,true,2,1),3);assert.equal(scorePick(3,true,1,1),0);assert.equal(scorePick(3,true,0,1),0);assert.equal(scorePick(3,false,1,2),4);assert.equal(scorePick(3,false,1,1),1);assert.equal(scorePick(3,false,2,1),0);assert.equal(scorePick(3,false,1,2,true),8);assert.equal(scorePick(3,false,null,null),null);});
 check('All cycle boundaries and invalid rounds',()=>{for(const [n,c] of [[1,1],[10,1],[11,2],[19,2],[20,3],[28,3],[29,4],[38,4],[0,0],[39,0]])assert.equal(cycleFor(n),c);});
@@ -153,6 +153,21 @@ check('ESPN request uses browser-like headers so the live scoreboard is not reje
  const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');assert(seen.url.includes('site.api.espn.com'));assert.match(seen.headers.get('user-agent')||'',/Mozilla\/5\.0/);assert.equal(seen.headers.get('accept'),'application/json, text/plain, */*');assert.equal(seen.headers.get('referer'),'https://www.espn.com/');
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
+
+
+check('ESPN connectivity test performs one read-only request and reports event count',async()=>{const old=globalThis.fetch;let calls=0;try{
+ globalThis.fetch=async(url,opts={})=>{calls++;assert(String(url).includes('site.api.espn.com'));const h=new Headers(opts.headers||{});assert.match(h.get('user-agent')||'',/Mozilla\/5\.0/);return Response.json({events:[{id:'one'},{id:'two'}]});};
+ const r=await testEspnSource(1789830000);assert.equal(r.ok,true);assert.equal(r.source,'ESPN');assert.equal(r.events,2);assert.equal(calls,1);
+}finally{globalThis.fetch=old;}});
+
+check('Admin exposes a safe TEST ESPN endpoint and button without changing fixture results',async()=>{const x=await fresh();const old=globalThis.fetch;try{
+ const before=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();
+ globalThis.fetch=async url=>{assert(String(url).includes('site.api.espn.com'));return Response.json({events:[{id:'probe'}]});};
+ assert.equal((await x.call('/admin/espn-test',{cookie:x.userCookie,body:{}})).status,403);
+ const r=await x.call('/admin/espn-test',{cookie:x.adminCookie,body:{}});assert.equal(r.status,200);assert.equal(r.data.events,1);assert.equal(r.data.source,'ESPN');
+ const after=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.deepEqual(after,before);
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('TEST ESPN'));assert(app.includes("api('/admin/espn-test',{})"));
+}finally{globalThis.fetch=old;x.env.DB.close();}});
 
 check('Football-data backoff does not block ESPN live updates',async()=>{const x=await fresh();const old=globalThis.fetch;const urls=[];try{
  x.env.FOOTBALL_DATA_API_KEY='mock-key';
