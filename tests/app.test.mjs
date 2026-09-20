@@ -170,6 +170,16 @@ check('Admin exposes a safe TEST ESPN endpoint and button without changing fixtu
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('TEST ESPN'));assert(app.includes("api('/admin/espn-test',{})"));
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
+check('ESPN can finalize a match and close its live polling even when football-data is unavailable',async()=>{const x=await fresh();const old=globalThis.fetch;try{
+ x.env.FOOTBALL_DATA_API_KEY='mock-key';
+ x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=99,kickoff=unixepoch()-60,status='IN_PLAY',home_score=1,away_score=1,manual_score=0 WHERE id='f1';INSERT INTO meta(key,value) VALUES('api_backoff',unixepoch()+3600) ON CONFLICT(key) DO UPDATE SET value=excluded.value;");
+ globalThis.fetch=async url=>{assert(String(url).includes('site.api.espn.com'));return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'2',team:{displayName:'Klub 1'}},{homeAway:'away',score:'1',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_END_PERIOD',state:'post'}}}]}]});};
+ const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');
+ const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.equal(row.home_score,2);assert.equal(row.away_score,1);assert.equal(row.status,'FINISHED');
+ assert(x.env.DB.sqlite.prepare("SELECT value FROM meta WHERE key='live-terminal:f1'").get());
+ const second=await syncFootball(x.env,false);assert.equal(second.skipped,true);assert.equal(second.mode,'idle');
+}finally{globalThis.fetch=old;x.env.DB.close();}});
+
 check('Football-data backoff does not block ESPN live updates',async()=>{const x=await fresh();const old=globalThis.fetch;const urls=[];try{
  x.env.FOOTBALL_DATA_API_KEY='mock-key';
  x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=99,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';INSERT INTO meta(key,value) VALUES('api_backoff',unixepoch()+3600) ON CONFLICT(key) DO UPDATE SET value=excluded.value;");
