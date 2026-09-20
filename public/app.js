@@ -141,7 +141,7 @@ function roundZeroScorers(d){
 function renderRoundPenas(d){
  const names=roundZeroScorers(d);if(!names.length)return '';
  const label=names.length===1?'Pena kola':'Pene kola';
- return `<div class="card"><div class="card-head"><h2>🫏 ${label}</h2><span class="pill pink">0 bodova</span></div><div class="not-picked">${names.map(name=>`<span>${esc(name)}</span>`).join('')}</div></div>`;
+ return `<div class="round-top-scorer"><div class="round-top-scorer-icon">🫏</div><div class="round-top-scorer-main"><div class="round-top-scorer-label">${label}</div><div class="round-top-scorer-name">${esc(names.join(', '))}</div></div><div class="round-top-scorer-points">0<span>bodova</span></div></div>`;
 }
 function closeWakeUpPopup(){const host=$('#wake-popup-host');if(host)host.innerHTML='';}
 function showWakeUpPopup(message){
