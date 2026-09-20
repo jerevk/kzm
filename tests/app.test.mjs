@@ -122,6 +122,7 @@ check('Registration UI exposes approval queue and does not auto-login a new requ
 check('Live polling window starts at kickoff and can recover from stale terminal status',()=>{
  const now=1_800_000_000;
  assert.equal(shouldPollFixture({api_id:99,manual_score:0,kickoff:now-60,status:'SCHEDULED'},now),true);
+ assert.equal(shouldPollFixture({api_id:null,manual_score:0,kickoff:now-60,status:'SCHEDULED'},now),true);
  assert.equal(shouldPollFixture({api_id:99,manual_score:0,kickoff:now+1,status:'SCHEDULED'},now),false);
  assert.equal(shouldPollFixture({api_id:99,manual_score:0,kickoff:now-60,status:'FINISHED'},now),true);
  assert.equal(shouldPollFixture({api_id:99,manual_score:1,kickoff:now-60,status:'IN_PLAY'},now),false);
@@ -138,11 +139,27 @@ check('Automatic football sync makes zero API calls when no match has started',a
 check('Automatic football sync requests only started fixtures, compares ESPN, and stops after FINISHED',async()=>{const x=await fresh();const old=globalThis.fetch;const urls=[];try{
  x.env.FOOTBALL_DATA_API_KEY='mock-key';
  x.env.DB.sqlite.exec("UPDATE teams SET api_id=CAST(substr(id,2) AS INTEGER);UPDATE fixtures SET api_id=99,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';INSERT INTO fixtures(id,round_no,home_id,away_id,kickoff,status,api_id) VALUES('f2',2,'t3','t4',unixepoch()+3600,'SCHEDULED',100);");
- globalThis.fetch=async url=>{const u=String(url);urls.push(u);if(u.includes('site.api.espn.com'))return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'2',team:{displayName:'Klub 1'}},{homeAway:'away',score:'1',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS'}}}]}]});return Response.json({matches:[{id:99,matchday:1,homeTeam:{id:1},awayTeam:{id:2},utcDate:new Date(Date.now()-60000).toISOString(),status:'FINISHED',score:{fullTime:{home:2,away:1}}}]});};
+ globalThis.fetch=async url=>{const u=String(url);urls.push(u);if(u.includes('site.api.espn.com'))return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'2',team:{displayName:'Klub 1'}},{homeAway:'away',score:'1',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_FULL_TIME',state:'post',completed:true}}}]}]});return Response.json({matches:[{id:99,matchday:1,homeTeam:{id:1},awayTeam:{id:2},utcDate:new Date(Date.now()-60000).toISOString(),status:'FINISHED',score:{fullTime:{home:2,away:1}}}]});};
  let r=await syncFootball(x.env,false);assert.equal(r.mode,'live-active');assert.deepEqual(r.requestedIds,[99]);assert.equal(urls.length,2);assert(urls.some(u=>/\/v4\/matches\?ids=99/.test(u)));assert(urls.some(u=>u.includes('site.api.espn.com')));assert(!urls.join(' ').includes('ids=100'));
  const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.equal(row.home_score,2);assert.equal(row.away_score,1);assert.equal(row.status,'FINISHED');
  const race=x.env.DB.sqlite.prepare("SELECT source,home_score,away_score FROM source_race WHERE fixture_id='f1' ORDER BY source").all();assert.deepEqual(race.map(z=>z.source),['ESPN','football-data.org']);assert(race.every(z=>z.home_score===2&&z.away_score===1));
  r=await syncFootball(x.env,false);assert.equal(r.skipped,true);assert(['idle','throttled'].includes(r.mode));assert.equal(urls.length,2);
+}finally{globalThis.fetch=old;x.env.DB.close();}});
+
+
+check('Football-data backoff does not block ESPN live updates',async()=>{const x=await fresh();const old=globalThis.fetch;const urls=[];try{
+ x.env.FOOTBALL_DATA_API_KEY='mock-key';
+ x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=99,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';INSERT INTO meta(key,value) VALUES('api_backoff',unixepoch()+3600) ON CONFLICT(key) DO UPDATE SET value=excluded.value;");
+ globalThis.fetch=async url=>{const u=String(url);urls.push(u);assert(u.includes('site.api.espn.com'));return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'1',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in',completed:false}}}]}]});};
+ const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');assert.equal(r.footballDataBackoff,true);assert.equal(urls.length,1);
+ const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.equal(row.home_score,1);assert.equal(row.away_score,0);assert.equal(row.status,'IN_PLAY');
+}finally{globalThis.fetch=old;x.env.DB.close();}});
+
+check('ESPN live fallback works even when a fixture has no football-data API id',async()=>{const x=await fresh();const old=globalThis.fetch;let calls=0;try{
+ x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=NULL,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
+ globalThis.fetch=async url=>{calls++;assert(String(url).includes('site.api.espn.com'));return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'0',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in',completed:false}}}]}]});};
+ const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');assert.deepEqual(r.requestedIds,[]);assert.equal(calls,1);
+ const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.equal(row.home_score,0);assert.equal(row.away_score,0);assert.equal(row.status,'IN_PLAY');
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
 check('Deploy switches Cloudflare cron to every minute without hardcoding project identifiers',()=>{
@@ -150,12 +167,12 @@ check('Deploy switches Cloudflare cron to every minute without hardcoding projec
 });
 
 check('Frontend silently refreshes D1 every 20 seconds only while a match is in its live window',()=>{
- const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,20000)'));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('Football API se ne poziva'));
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,20000)'));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN radi neovisno o football-data rate limitu'));
 });
 
-check('Admin panel exposes source-race diagnostics without changing scoring source',async()=>{const x=await fresh();try{
+check('Admin panel exposes source-race diagnostics and live fallback status',async()=>{const x=await fresh();try{
  const r=await x.call('/admin/panel',{cookie:x.adminCookie});assert.equal(r.status,200);assert(Array.isArray(r.data.sourceRace));assert.equal(typeof r.data.sourceRaceActive,'number');
- const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('Utrka izvora'));assert(app.includes('ESPN ne mijenja rezultate, pickove ni bodove'));assert(app.includes('sourceRaceActive'));
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('Utrka izvora'));assert(app.includes('ESPN sada može ažurirati live rezultat u D1'));assert(app.includes('sourceRaceFootballError'));assert(app.includes('sourceRaceActive'));
 }finally{x.env.DB.close();}});
 
 

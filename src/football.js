@@ -10,7 +10,7 @@ const aliases={
 };
 const LIVE_WINDOW_SECONDS=4*60*60;
 const LIVE_MIN_INTERVAL_SECONDS=20;
-const TERMINAL_STATUSES=['FINISHED','AWARDED','POSTPONED','SUSPENDED','CANCELLED'];
+const TERMINAL_STATUSES=['FINISHED','AWARDED','POSTPONED','CANCELLED'];
 
 function teamKey(s){
  const n=normalize(s).replace(/\b(fc|afc)\b/g,'').replace(/\s+/g,' ').trim();
@@ -58,7 +58,7 @@ export function mapMatches(matches,teams){
 
 export function shouldPollFixture(f,now=Math.floor(Date.now()/1000)){
  const kickoff=Number(f?.kickoff||0);
- if(!Number(f?.api_id)||Number(f?.manual_score)===1||!kickoff)return false;
+ if(Number(f?.manual_score)===1||!kickoff)return false;
  return kickoff<=now&&kickoff>=now-LIVE_WINDOW_SECONDS;
 }
 
@@ -78,6 +78,17 @@ async function fetchEspn(now){
  const response=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=${date}`,{signal:AbortSignal.timeout(12000)});
  assert(response.ok,`ESPN odgovorio je HTTP ${response.status}.`);
  return response.json();
+}
+
+function espnStatus(c){
+ const t=c?.status?.type||{},name=String(t.name||'').toUpperCase(),state=String(t.state||'').toLowerCase();
+ if(t.completed===true||name.includes('FULL_TIME')||name.includes('FINAL'))return 'FINISHED';
+ if(name.includes('POSTPON'))return 'POSTPONED';
+ if(name.includes('CANCEL'))return 'CANCELLED';
+ if(name.includes('SUSPEND'))return 'SUSPENDED';
+ if(name.includes('HALF')||name.includes('BREAK')||name.includes('PAUSE'))return 'PAUSED';
+ if(state==='in'||name.includes('IN_PROGRESS'))return 'IN_PLAY';
+ return 'SCHEDULED';
 }
 
 async function ensureSourceRace(env){
@@ -126,8 +137,7 @@ function espnRaceRows(raw,active,observedAt){
   const aname=away.team?.displayName||away.team?.name||away.team?.shortDisplayName||'';
   const f=byNames.get(teamKey(hname)+'|'+teamKey(aname));if(!f)continue;
   const hs=home.score==null||home.score===''?null:Number(home.score),as=away.score==null||away.score===''?null:Number(away.score);
-  const st=c.status?.type?.name||c.status?.type?.detail||c.status?.type?.state||'UNKNOWN';
-  out.push({fixture_id:f.id,source:'ESPN',home_name:f.home_name,away_name:f.away_name,home_score:Number.isFinite(hs)?hs:null,away_score:Number.isFinite(as)?as:null,status:String(st),observed_at:observedAt});
+  out.push({fixture_id:f.id,source:'ESPN',home_name:f.home_name,away_name:f.away_name,home_score:Number.isFinite(hs)?hs:null,away_score:Number.isFinite(as)?as:null,status:espnStatus(c),observed_at:observedAt});
  }
  return out;
 }
@@ -140,9 +150,12 @@ export async function sourceRaceData(env){
  await ensureSourceRace(env);
  const now=Math.floor(Date.now()/1000);
  const rows=(await env.DB.prepare('SELECT * FROM source_race ORDER BY observed_at DESC,id DESC LIMIT 250').all()).results;
- const active=(await env.DB.prepare(`SELECT COUNT(*) AS n FROM fixtures WHERE api_id IS NOT NULL AND manual_score=0 AND kickoff IS NOT NULL AND kickoff<=? AND kickoff>=? AND status NOT IN('FINISHED','AWARDED','POSTPONED','SUSPENDED','CANCELLED')`).bind(now,now-LIVE_WINDOW_SECONDS).first())?.n||0;
- const err=await env.DB.prepare("SELECT value FROM meta WHERE key='source_race_espn_error'").first();
- return {rows,active:Number(active),espnError:err?.value||''};
+ const active=(await env.DB.prepare(`SELECT COUNT(*) AS n FROM fixtures WHERE manual_score=0 AND kickoff IS NOT NULL AND kickoff<=? AND kickoff>=? AND NOT EXISTS(SELECT 1 FROM meta m WHERE m.key='live-terminal:'||fixtures.id)`).bind(now,now-LIVE_WINDOW_SECONDS).first())?.n||0;
+ const errs=await env.DB.batch([
+  env.DB.prepare("SELECT value FROM meta WHERE key='source_race_espn_error'"),
+  env.DB.prepare("SELECT value FROM meta WHERE key='source_race_football_error'")
+ ]);
+ return {rows,active:Number(active),espnError:errs[0].results?.[0]?.value||'',footballError:errs[1].results?.[0]?.value||''};
 }
 
 async function saveFootball(env,s,teams,matches,{manual=false}={}){
@@ -169,68 +182,130 @@ async function saveFootball(env,s,teams,matches,{manual=false}={}){
 }
 
 async function activeFixtures(s,now){
- const rows=(await s(`SELECT f.id,f.api_id,f.kickoff,f.status,f.manual_score,h.name AS home_name,a.name AS away_name
+ const rows=(await s(`SELECT f.id,f.api_id,f.kickoff,f.status,f.manual_score,f.home_score,f.away_score,h.name AS home_name,a.name AS away_name
   FROM fixtures f JOIN teams h ON h.id=f.home_id JOIN teams a ON a.id=f.away_id
-  WHERE f.api_id IS NOT NULL AND f.manual_score=0 AND f.kickoff IS NOT NULL
+  WHERE f.manual_score=0 AND f.kickoff IS NOT NULL
     AND f.kickoff<=? AND f.kickoff>=?
     AND NOT EXISTS(SELECT 1 FROM meta m WHERE m.key='live-terminal:'||f.id)
   ORDER BY f.kickoff,f.api_id`,now,now-LIVE_WINDOW_SECONDS).all()).results;
  return rows.filter(f=>shouldPollFixture(f,now));
 }
 
-async function markTerminalState(env,s,active,matches,observedAt){
- const byApi=new Map(active.map(f=>[Number(f.api_id),f])),ops=[];
- for(const m of matches||[]){const f=byApi.get(Number(m.id));if(!f)continue;const key='live-terminal:'+f.id,status=String(m.status||'').toUpperCase();if(TERMINAL_STATUSES.includes(status))ops.push(s('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,String(observedAt)));else ops.push(s('DELETE FROM meta WHERE key=?',key));}
+function usefulLiveRow(row){
+ if(!row?.fixture_id)return false;
+ const status=String(row.status||'SCHEDULED').toUpperCase();
+ return status!=='SCHEDULED';
+}
+
+async function applyLiveRows(env,s,rows,source){
+ const useful=rows.filter(usefulLiveRow),ops=[];
+ for(const row of useful){
+  const hs=row.home_score==null?null:Number(row.home_score),as=row.away_score==null?null:Number(row.away_score),status=String(row.status||'IN_PLAY').toUpperCase();
+  ops.push(s(`UPDATE fixtures SET
+   home_score=CASE WHEN ? IS NULL OR ? IS NULL THEN home_score ELSE ? END,
+   away_score=CASE WHEN ? IS NULL OR ? IS NULL THEN away_score ELSE ? END,
+   status=CASE
+    WHEN status IN('FINISHED','AWARDED') AND ? NOT IN('FINISHED','AWARDED') THEN status
+    WHEN ?='SCHEDULED' AND status IN('IN_PLAY','PAUSED','SUSPENDED') THEN status
+    ELSE ? END
+   WHERE id=? AND manual_score=0`,hs,as,hs,hs,as,as,status,status,status,row.fixture_id));
+  const terminal=TERMINAL_STATUSES.includes(status)&&(!(status==='FINISHED'||status==='AWARDED')||(hs!==null&&as!==null));
+  const key='live-terminal:'+row.fixture_id;
+  if(terminal)ops.push(s('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,String(row.observed_at||Math.floor(Date.now()/1000))));
+  else ops.push(s('DELETE FROM meta WHERE key=?',key));
+ }
  if(ops.length)await env.DB.batch(ops);
+ if(useful.length)await env.DB.batch([
+  s("INSERT INTO meta(key,value) VALUES('last_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(Math.floor(Date.now()/1000))),
+  s("INSERT INTO meta(key,value) VALUES('last_sync_source',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",source),
+  s("INSERT INTO meta(key,value) VALUES('last_sync_error','') ON CONFLICT(key) DO UPDATE SET value=''")
+ ]);
+ return new Set(useful.map(x=>String(x.fixture_id)));
 }
 
 export async function syncFootball(env,manual=false){
- assert(env.FOOTBALL_DATA_API_KEY,'API kljuc nije postavljen. Koristi npm run football-key.');
  const db=env.DB,now=Math.floor(Date.now()/1000),s=(sql,...a)=>db.prepare(sql).bind(...a);
  await s("INSERT OR IGNORE INTO meta(key,value) VALUES('sync_lease','0')").run();
  const lease=await s("UPDATE meta SET value=? WHERE key='sync_lease' AND CAST(value AS INTEGER)<? RETURNING value",String(now+90),now).first();
  assert(lease,'Sinkronizacija vec traje.');
  try{
-  const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first();
-  assert(!backoff||Number(backoff.value)<=now,'API odgoda je aktivna. Pokusaj kasnije.');
   const teams=(await s('SELECT * FROM teams').all()).results;
   assert(teams.length===20,'Prvo uvezi 20 klubova i njihove stvarne osnovne bodove.');
 
   if(manual){
+   assert(env.FOOTBALL_DATA_API_KEY,'API kljuc nije postavljen. Koristi npm run football-key.');
+   const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first();
+   assert(!backoff||Number(backoff.value)<=now,'Football-data odgoda je aktivna. Pokusaj kasnije.');
    const last=await s("SELECT value FROM meta WHERE key='last_manual_sync'").first();
    assert(!last||now-Number(last.value)>=120,'Rucno osvjezavanje dostupno je svake dvije minute.');
    const raw=await fetchJson(env,`https://api.football-data.org/v4/competitions/PL/matches?season=${Number(env.SEASON||2026)}`,s,now);
    const fixtures=await saveFootball(env,s,teams,raw.matches,{manual:true});
-   await s("INSERT INTO meta(key,value) VALUES('last_manual_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)).run();
-   return {ok:true,mode:'manual-full',fixtures:fixtures.length,lastSync:now,notice:'Puni raspored je osvjezen. Povijesni bodovi i rucno zasticeni rezultati ostali su sacuvani.'};
+   await env.DB.batch([
+    s("INSERT INTO meta(key,value) VALUES('last_manual_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)),
+    s("INSERT INTO meta(key,value) VALUES('last_sync_source','football-data.org') ON CONFLICT(key) DO UPDATE SET value=excluded.value"),
+    s("INSERT INTO meta(key,value) VALUES('api_backoff','0') ON CONFLICT(key) DO UPDATE SET value='0'")
+   ]);
+   return {ok:true,mode:'manual-full',fixtures:fixtures.length,lastSync:now,source:'football-data.org',notice:'Puni raspored je osvjezen. Povijesni bodovi i rucno zasticeni rezultati ostali su sacuvani.'};
   }
 
   const active=await activeFixtures(s,now);
-  if(!active.length)return {ok:true,mode:'idle',skipped:true,fixtures:0,lastSync:null,notice:'Nema utakmica koje su trenutno u vremenu igranja; Football API nije pozvan.'};
+  if(!active.length)return {ok:true,mode:'idle',skipped:true,fixtures:0,lastSync:null,notice:'Nema utakmica koje su trenutno u vremenu igranja; vanjski live izvori nisu pozvani.'};
   const lastLive=await s("SELECT value FROM meta WHERE key='last_live_poll'").first();
   if(lastLive&&now-Number(lastLive.value)<LIVE_MIN_INTERVAL_SECONDS)return {ok:true,mode:'throttled',skipped:true,fixtures:active.length,lastSync:Number(lastLive.value)};
   await s("INSERT INTO meta(key,value) VALUES('last_live_poll',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)).run();
 
   await ensureSourceRace(env);
-  const ids=active.map(f=>Number(f.api_id));
-  const url='https://api.football-data.org/v4/matches?ids='+encodeURIComponent(ids.join(','))+'&limit=20';
-  const fdPromise=fetchJson(env,url,s,now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)}));
+  const ids=active.filter(f=>Number(f.api_id)>0).map(f=>Number(f.api_id));
+  const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first(),backoffUntil=Number(backoff?.value||0);
+  const fdAllowed=!!env.FOOTBALL_DATA_API_KEY&&ids.length>0&&backoffUntil<=now;
   const espnPromise=fetchEspn(now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)}));
-  const [fdResult,espnResult]=await Promise.allSettled([fdPromise,espnPromise]);
+  const fdPromise=fdAllowed?fetchJson(env,'https://api.football-data.org/v4/matches?ids='+encodeURIComponent(ids.join(','))+'&limit=20',s,now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)})):Promise.resolve(null);
+  const [espnResult,fdResult]=await Promise.allSettled([espnPromise,fdPromise]);
 
+  let espnRows=[],fdRows=[],espnApplied=new Set(),fdApplied=new Set();
   if(espnResult.status==='fulfilled'){
-   await recordRaceRows(env,espnRaceRows(espnResult.value.data,active,espnResult.value.observedAt));
-   await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error','') ON CONFLICT(key) DO UPDATE SET value='' ").run();
+   espnRows=espnRaceRows(espnResult.value.data,active,espnResult.value.observedAt);
+   await recordRaceRows(env,espnRows);
+   if(espnRows.length){
+    espnApplied=await applyLiveRows(env,s,espnRows,'ESPN');
+    await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error','') ON CONFLICT(key) DO UPDATE SET value='' ").run();
+   }else{
+    await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",'ESPN nije povezao nijednu trenutno aktivnu KZM utakmicu.').run();
+   }
   }else{
    await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(espnResult.reason?.message||espnResult.reason||'ESPN greska').slice(0,300)).run();
   }
-  if(fdResult.status==='rejected')throw fdResult.reason;
 
-  const raw=fdResult.value.data;
-  await recordRaceRows(env,footballRaceRows(raw,active,fdResult.value.observedAt));
-  const fixtures=await saveFootball(env,s,teams,raw.matches,{manual:false});
-  await markTerminalState(env,s,active,raw.matches,fdResult.value.observedAt);
-  return {ok:true,mode:'live-active',fixtures:fixtures.length,requestedIds:ids,lastSync:now,notice:'Osvjezene su samo utakmice koje su trenutno aktivne. U pozadini se biljezi i ESPN usporedba; ona ne utjece na bodovanje.'};
+  if(fdResult.status==='fulfilled'&&fdResult.value){
+   fdRows=footballRaceRows(fdResult.value.data,active,fdResult.value.observedAt);
+   await recordRaceRows(env,fdRows);
+   const fallbackRows=fdRows.filter(row=>!espnApplied.has(String(row.fixture_id)));
+   fdApplied=await applyLiveRows(env,s,fallbackRows,'football-data.org');
+   await env.DB.batch([
+    s("INSERT INTO meta(key,value) VALUES('source_race_football_error','') ON CONFLICT(key) DO UPDATE SET value=''"),
+    s("INSERT INTO meta(key,value) VALUES('api_backoff','0') ON CONFLICT(key) DO UPDATE SET value='0'")
+   ]);
+  }else if(fdResult.status==='rejected'){
+   await s("INSERT INTO meta(key,value) VALUES('source_race_football_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(fdResult.reason?.message||fdResult.reason||'Football-data greska').slice(0,300)).run();
+  }else if(!env.FOOTBALL_DATA_API_KEY){
+   await s("INSERT INTO meta(key,value) VALUES('source_race_football_error','Football-data API kljuc nije postavljen; ESPN live fallback je i dalje aktivan.') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+  }else if(backoffUntil>now){
+   await s("INSERT INTO meta(key,value) VALUES('source_race_football_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",`Football-data je u odgodi jos oko ${Math.ceil((backoffUntil-now)/60)} min.; ESPN se i dalje provjerava.`).run();
+  }else if(!ids.length){
+   await s("INSERT INTO meta(key,value) VALUES('source_race_football_error','Aktivne utakmice nemaju football-data API ID; ESPN se i dalje provjerava.') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+  }
+
+  const applied=new Set([...espnApplied,...fdApplied]);
+  const source=espnApplied.size&&fdApplied.size?'ESPN+football-data.org':espnApplied.size?'ESPN':fdApplied.size?'football-data.org':'none';
+  if(applied.size){
+   await env.DB.batch([
+    s("INSERT INTO meta(key,value) VALUES('last_sync_mode','live-active') ON CONFLICT(key) DO UPDATE SET value=excluded.value"),
+    s("INSERT INTO meta(key,value) VALUES('last_sync_source',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",source)
+   ]);
+  }else if(espnResult.status==='rejected'&&fdResult.status==='rejected'){
+   throw new Error('Nijedan live izvor nije dostupan: '+String(espnResult.reason?.message||'ESPN greska')+'; '+String(fdResult.reason?.message||'football-data greska'));
+  }
+  return {ok:true,mode:'live-active',fixtures:applied.size,activeFixtures:active.length,requestedIds:ids,lastSync:applied.size?now:null,source,footballDataBackoff:backoffUntil>now,notice:applied.size?`Live rezultat osvjezen preko ${source}. ESPN ima prednost za live rezultat; football-data.org ostaje fallback i izvor punog rasporeda.`:'Live izvori su provjereni, ali nisu vratili novu aktivnu promjenu.'};
  }catch(e){
   await s("INSERT INTO meta(key,value) VALUES('last_sync_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(e.message||e).slice(0,500)).run();
   throw e;

@@ -191,7 +191,7 @@ async function adminPanel(env){
  const data=await env.DB.batch([
   stmt(env,'SELECT id,name,active,is_admin FROM players ORDER BY name'),
   stmt(env,'SELECT player_id,cycle,paid FROM payments'),
-  stmt(env,"SELECT key,value FROM meta WHERE key IN('picks_enabled','dataset_imported','last_sync','last_sync_error','registration_open','max_players')"),
+  stmt(env,"SELECT key,value FROM meta WHERE key IN('picks_enabled','dataset_imported','last_sync','last_sync_error','last_sync_source','registration_open','max_players','api_backoff')"),
   stmt(env,'SELECT a.action,a.target,a.created_at,p.name AS actor FROM audit a LEFT JOIN players p ON p.id=a.actor_id ORDER BY a.id DESC LIMIT 30'),
   stmt(env,'SELECT p.player_id,p.round_no,p.team_id,p.is_double,t.name AS team_name FROM picks p JOIN teams t ON t.id=p.team_id ORDER BY p.round_no,p.player_id')
  ]);
@@ -207,7 +207,8 @@ async function adminPanel(env){
   picks:data[4].results,
   sourceRace:race.rows,
   sourceRaceActive:race.active,
-  sourceRaceEspnError:race.espnError
+  sourceRaceEspnError:race.espnError,
+  sourceRaceFootballError:race.footballError
  };
 }
 async function standings(env){
@@ -228,7 +229,7 @@ export async function handle(request,env){
  assert(env.DB,'D1 baza nije povezana.',503);
  const project=await first(env,"SELECT value FROM meta WHERE key='project_id'");
  assert(!project||project.value===env.PROJECT_ID,'Pogresna baza za ovu instalaciju.',503);
- if(path==='/api/health'&&method==='GET')return json({ok:true,version:'1.0.0',database:'D1',separate:true});
+ if(path==='/api/health'&&method==='GET')return json({ok:true,version:'1.1.0-live-fallback',database:'D1',separate:true});
  if(path==='/api/login-players'&&method==='GET')return json(await loginPlayers(env));
  if(path==='/api/setup'&&method==='POST'){
   const b=await bodyJson(request);await rateLimit(env,'setup',request.headers.get('CF-Connecting-IP')||'local',5);
@@ -261,7 +262,7 @@ export async function handle(request,env){
  if(path==='/api/push/config'&&method==='GET')return json({ok:true,configured:pushConfigured(env),appId:pushConfigured(env)?env.ONESIGNAL_APP_ID:null});
  if(path==='/api/logout'&&method==='POST'){await stmt(env,'DELETE FROM sessions WHERE token_hash=?',await sha256(tokenFrom(request))).run();return json({ok:true},200,{'Set-Cookie':sessionCookie('',request,0)});}
  if(path==='/api/bootstrap'&&method==='GET')return json(await bootstrap(env,u));
- if(path==='/api/live/pulse'&&method==='POST'){await bodyJson(request);try{return json(await syncFootball(env,false));}catch(e){return json({ok:true,mode:'degraded',skipped:true,error:String(e.message||e).slice(0,300)});}}
+ if(path==='/api/live/pulse'&&method==='POST'){await bodyJson(request);try{const result=await syncFootball(env,false);if(pushConfigured(env)&&!result.skipped)try{await processPush(env);}catch{}return json(result);}catch(e){return json({ok:true,mode:'degraded',skipped:true,error:String(e.message||e).slice(0,300)});}}
  const roundMatch=path.match(/^\/api\/round\/(\d+)$/);
  if(roundMatch&&method==='GET')return json(await roundData(env,u,integer(Number(roundMatch[1]),1,38,'kolo')));
  if(path==='/api/pick'&&method==='POST'){
@@ -406,7 +407,7 @@ export default {
  }},
  async scheduled(event,env,ctx){ctx.waitUntil((async()=>{
  await env.DB.batch([stmt(env,'DELETE FROM sessions WHERE expires_at<=unixepoch()'),stmt(env,'DELETE FROM rate_limits WHERE expires_at<=unixepoch()')]);
- if(env.FOOTBALL_DATA_API_KEY)try{await syncFootball(env,false);}catch{/* last_sync_error is persisted, no secrets in logs */}
+ try{await syncFootball(env,false);}catch{/* last_sync_error is persisted, no secrets in logs */}
  try{await activateApprovedRegistrations(env);}catch{/* odobrena registracija ce se ponovno provjeriti na sljedecem cron prolazu ili loginu */}
  if(pushConfigured(env))try{await processPush(env);}catch{/* push se ponavlja na sljedecem cron prolazu; kljucevi se ne ispisuju */}
  })());}
