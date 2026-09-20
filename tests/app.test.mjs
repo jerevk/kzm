@@ -199,13 +199,14 @@ check('Deploy switches Cloudflare cron to every minute without hardcoding projec
  const d=fs.readFileSync(new URL('../scripts/deploy.mjs',import.meta.url),'utf8');assert(d.includes("const wanted='* * * * *'"));assert(d.includes("saveJSON('wrangler.json',config)"));assert(!d.includes('kzm-novi-d9ad28'));
 });
 
-check('Finished round labels every picked zero-point player as Pena kola or Pene kola',()=>{
+check('Finished round labels every picked zero-point player as Pena kola or Pene kola with winner-style UI',()=>{
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  assert(app.includes('function roundZeroScorers(d)'));
  assert(app.includes("Number(x.pick.points)===0"));
  assert(app.includes("names.length===1?'Pena kola':'Pene kola'"));
  assert(app.includes('renderRoundPenas(d)'));
- assert(app.includes('0 bodova'));
+ assert(app.includes('<div class="round-top-scorer-icon">🫏</div>'));
+ assert(app.includes('<div class="round-top-scorer-points">0<span>bodova</span></div>'));
 });
 
 check('Frontend auto refreshes visible data every 15 seconds and polls live sources only when needed',()=>{
