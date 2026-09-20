@@ -134,6 +134,15 @@ function renderRoundTopScorers(d){
  const label=top.names.length===1?'Pobjednik kola':'Pobjednici kola';
  return `<div class="round-top-scorer"><div class="round-top-scorer-icon">🏆</div><div class="round-top-scorer-main"><div class="round-top-scorer-label">${label}</div><div class="round-top-scorer-name">${esc(top.names.join(', '))}</div></div><div class="round-top-scorer-points">${esc(top.points)}<span>bodova</span></div></div>`;
 }
+function roundZeroScorers(d){
+ if(!roundComplete(d))return [];
+ return (d.players||[]).filter(x=>x.chosen&&x.pick&&Number(x.pick.points)===0).map(x=>x.name);
+}
+function renderRoundPenas(d){
+ const names=roundZeroScorers(d);if(!names.length)return '';
+ const label=names.length===1?'Pena kola':'Pene kola';
+ return `<div class="card"><div class="card-head"><h2>🫏 ${label}</h2><span class="pill pink">0 bodova</span></div><div class="not-picked">${names.map(name=>`<span>${esc(name)}</span>`).join('')}</div></div>`;
+}
 function closeWakeUpPopup(){const host=$('#wake-popup-host');if(host)host.innerHTML='';}
 function showWakeUpPopup(message){
  const host=$('#wake-popup-host');if(!host)return;
@@ -181,6 +190,7 @@ function renderRound(d){
   const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''}"><td><strong>${esc(x.name)}</strong></td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?'<span class="pink">x2 DOUBLE</span>':'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
   right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
   right+=renderRoundTopScorers(d);
+  right+=renderRoundPenas(d);
  }
  right+=`<div class="card"><div class="card-head"><h2>Nisu birali</h2><span class="pill pink">${notPicked.length}</span></div><div class="not-picked">${notPicked.map(x=>`<span>${esc(x.name)}</span>`).join('')||'<div class="green">Svi su odabrali ✓</div>'}</div></div>`;
  right+=renderRoundPickStats(d);
