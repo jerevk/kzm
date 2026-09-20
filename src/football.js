@@ -75,7 +75,15 @@ async function fetchJson(env,url,s,now){
 
 async function fetchEspn(now){
  const date=new Date(now*1000).toISOString().slice(0,10).replace(/-/g,'');
- const response=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=${date}`,{signal:AbortSignal.timeout(12000)});
+ const response=await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=${date}`,{
+  headers:{
+   'Accept':'application/json, text/plain, */*',
+   'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
+   'Referer':'https://www.espn.com/',
+   'Origin':'https://www.espn.com'
+  },
+  signal:AbortSignal.timeout(12000)
+ });
  assert(response.ok,`ESPN odgovorio je HTTP ${response.status}.`);
  return response.json();
 }

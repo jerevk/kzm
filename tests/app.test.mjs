@@ -147,6 +147,13 @@ check('Automatic football sync requests only started fixtures, compares ESPN, an
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
 
+check('ESPN request uses browser-like headers so the live scoreboard is not rejected as a bot',async()=>{const x=await fresh();const old=globalThis.fetch;let seen;try{
+ x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=NULL,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
+ globalThis.fetch=async(url,opts={})=>{seen={url:String(url),headers:new Headers(opts.headers||{})};return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'0',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in',completed:false}}}]}]});};
+ const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');assert(seen.url.includes('site.api.espn.com'));assert.match(seen.headers.get('user-agent')||'',/Mozilla\/5\.0/);assert.equal(seen.headers.get('accept'),'application/json, text/plain, */*');assert.equal(seen.headers.get('referer'),'https://www.espn.com/');
+}finally{globalThis.fetch=old;x.env.DB.close();}});
+
+
 check('Football-data backoff does not block ESPN live updates',async()=>{const x=await fresh();const old=globalThis.fetch;const urls=[];try{
  x.env.FOOTBALL_DATA_API_KEY='mock-key';
  x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=99,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';INSERT INTO meta(key,value) VALUES('api_backoff',unixepoch()+3600) ON CONFLICT(key) DO UPDATE SET value=excluded.value;");
