@@ -1,0 +1,7 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.onesignal.com https://api.onesignal.com https://onesignal.com https://*.onesignal.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.onesignal.com https://onesignal.com https://*.onesignal.com; worker-src 'self' blob:; frame-src 'self' https://onesignal.com https://*.onesignal.com; img-src 'self' data: https://crests.football-data.org https://kzm-push-bridge.djerkic10.workers.dev https://onesignal.com https://*.onesignal.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+  Cache-Control: no-cache

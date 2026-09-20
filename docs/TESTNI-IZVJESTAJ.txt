@@ -1,0 +1,47 @@
+KZM NOVI 1.0 - LOKALNA PROVJERA
+Datum: 2026-09-12
+
+Automatizirani testovi: 36/36 PASS.
+Naredba: npm test
+Node + DatabaseSync SQLite, adapter s transakcijama za DB.batch.
+To nije pravi Cloudflare D1/workerd runtime; nema mjerenja produkcijske latencije.
+
+Sintaksa: node --check za src/*.js, scripts/*.mjs, tests/*.mjs, public/*.js.
+Apps Script izvoz izvrsen u izoliranom mock okruzenju: dozvoljene samo read metode;
+provjerena 38 kola, 20 klubova, odabiri, placanja i odsutnost PIN-ova.
+
+UI: Chromium, desktop1440x1000 i mobitel390x844.
+Stvarni app.js, stvarni lokalni HTTP backend i SQLite.
+Zbog ogranicenja preglednika koristen je testni fetch transport.
+Ovo NE provjerava browser cookie/Origin ponasanje na javnom HTTPS-u.
+
+PAYMENT: Placanje spremljeno.
+DESKTOP_OVERFLOW: False
+FIXTURE: Klub 1 - Klub 2	2 : 1	Uredi
+TEAM_EDIT: Klub spremljen.
+ADD_PLAYER: PASS
+VIEW: results PASS
+VIEW: stats PASS
+VIEW: mine PASS
+VIEW: standings PASS
+ROUND4_PICK: PASS
+ROUND5_USED_TEAM: PASS
+MOBILE_OVERFLOW: False
+JS_ERRORS: []
+
+Nije provjereno:
+- npm instalacija Wranglera i objava na stvarni CF racun;
+- Cloudflare free/paid CPU i kvote pod opterecenjem;
+- stvarni korisnikov izvoz, postojece bodovne razlike i prava pristupa;
+- vlastiti football-data.org API kljuc i sezona u tom racunu;
+- produkcijski cookie/HTTPS/CSP kroz Cloudflare;
+- neovisni sigurnosni audit i puna feature-parity sa starim sustavom.
+
+Obavezna rucna provjera nakon probne cloud objave:
+prijava oba racuna; samo admin smije mijenjati postavke;
+tudji otvoreni picks nisu vidljivi ni u Network JSON odgovorima;
+save/edit prije roka, odbijanje nakon roka, zabrane team/DOUBLE;
+uplate true/false/null sva4kruga; deaktivacija i opoziv sesije;
+usporedba svih uvezenih odabira/bodova/placanja s izvornom kopijom;
+API mapping, rucni rezultati, rokovi i neprepisivanje povijesti;
+backup prije otvaranja ligi.

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#37003C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ko zadnji magarac">
+  <title>Ko zadnji magarac</title>
+  <link rel="preconnect" href="https://crests.football-data.org" crossorigin>
+  <link rel="apple-touch-icon" href="https://kzm-push-bridge.djerkic10.workers.dev/assets/kzm-logo-v1.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="https://kzm-push-bridge.djerkic10.workers.dev/assets/kzm-logo-v1.png">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div id="loading" class="loading-screen">
+    <div class="brand-mark loading-logo"><img src="https://kzm-push-bridge.djerkic10.workers.dev/assets/kzm-logo-v1.png" alt="Ko zadnji magarac"></div>
+    <div class="spinner"></div>
+    <p>Otvaram ligu...</p>
+  </div>
+
+  <section id="login" hidden>
+    <div class="login-shell">
+      <div class="login-card">
+        <div class="brand-mark"><img src="https://kzm-push-bridge.djerkic10.workers.dev/assets/kzm-logo-v1.png" alt="Logo Ko zadnji magarac" width="192" height="192"></div>
+        <div class="eyebrow">PREMIER LEAGUE 2026/27</div>
+        <h1>Ko zadnji<br>magarac</h1>
+        <p class="subtitle">Prijavi se i odaberi svoju ekipu za aktualno kolo.</p>
+        <form id="login-form">
+          <label>Korisnik<select name="name" autocomplete="username" required><option value="">Odaberi igrača</option></select></label>
+          <label>PIN<input name="password" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" required minlength="4" maxlength="12" placeholder="Unesi PIN"></label>
+          <button class="primary full" type="submit">PRIJAVA</button>
+        </form>
+        <div id="login-error" role="alert"></div>
+        <div id="registration-box" class="registration-box" hidden>
+          <div class="login-divider"><span>ili</span></div>
+          <button id="registration-open-button" class="secondary full" type="button" data-action="show-registration">POŠALJI ZAHTJEV ZA IGRU</button>
+          <p id="registration-status" class="fine registration-status"></p>
+          <form id="registration-form" hidden>
+            <p class="fine"><strong>Registracija nije trenutačna aktivacija.</strong> Zahtjev mora odobriti administrator, a odobreni igrač može ući tek od sljedećeg kruga.</p>
+            <label>Ime i prezime<input name="name" required minlength="2" maxlength="80" autocomplete="name" placeholder="Upiši ime i prezime"></label>
+            <label>PIN<input name="password" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password" placeholder="Odaberi PIN"></label>
+            <label>Ponovi PIN<input name="password2" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password" placeholder="Ponovi PIN"></label>
+            <button class="primary full" type="submit">POŠALJI ZAHTJEV</button>
+            <button class="login-cancel full" type="button" data-action="cancel-registration">NATRAG NA PRIJAVU</button>
+          </form>
+          <div id="registration-error" role="alert"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="topbar">
+      <button class="hamb" data-action="menu" aria-label="Izbornik">&#9776;</button>
+      <div class="top-title">Ko zadnji magarac</div>
+      <div class="top-user" id="user-name"></div>
+      <button class="refresh" data-action="home" title="Trenutno kolo" aria-label="Vrati na trenutno kolo">&#8962;</button>
+    </div>
+
+    <div id="safety-banner" class="notice" hidden></div>
+    <div id="veil" class="overlay" hidden></div>
+
+    <aside id="nav" class="drawer">
+      <div class="drawer-head">
+        <div class="drawer-logo"><img src="https://kzm-push-bridge.djerkic10.workers.dev/assets/kzm-logo-v1.png" alt="Logo Ko zadnji magarac" width="192" height="192"></div>
+        <strong>Ko zadnji magarac</strong>
+        <span id="drawer-user"></span>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Krug</div>
+        <div id="cycles" class="cycle-grid"></div>
+        <div class="nav-label">Kola</div>
+        <div id="rounds" class="round-grid"></div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Liga</div>
+        <button class="nav-item" data-view="standings"><span class="nav-icon">&#127942;</span> Premier League uzivo</button>
+        <button class="nav-item" data-view="mine"><span class="nav-icon">&#127919;</span> Moji odabiri</button>
+        <button class="nav-item" data-view="results"><span class="nav-icon">&#128202;</span> Tablica</button>
+        <button class="nav-item" data-view="stats"><span class="nav-icon">&#128200;</span> Statistika</button>
+      </div>
+
+      <div class="nav-section" id="admin-section" hidden>
+        <div class="nav-label">Administracija</div>
+        <button class="nav-item" data-view="admin" id="admin-nav"><span class="nav-icon">&#9881;</span> Admin postavke</button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Racun</div>
+        <button class="nav-item" data-action="push" id="push-nav"><span class="nav-icon">🔕</span> Uključi obavijesti</button>
+        <button class="nav-item" data-action="logout"><span class="nav-icon">&#8617;</span> Odjava</button>
+      </div>
+
+      <p class="nav-footer">KZM CLOUD / D1<br><span id="latency">Cloudflare D1</span></p>
+    </aside>
+
+    <main class="content"><div id="main"></div></main>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="winner-popup-host"></div>
+  <div id="wake-popup-host"></div>
+  <dialog id="password-dialog">
+    <form id="password-form">
+      <h2>Promjena PIN-a</h2>
+      <p id="password-name"></p>
+      <label>Novi PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password"></label>
+      <p class="fine">Promjena odjavljuje korisnika na svim uredjajima.</p>
+      <div class="actions"><button type="button" data-action="close-dialog">Odustani</button><button class="primary" type="submit">Spremi</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

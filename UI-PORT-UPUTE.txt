@@ -1,0 +1,45 @@
+KZM NOVI - VRACEN STARI UI NA CLOUDFLARE/D1
+=============================================
+
+Ovaj patch NE mijenja D1 podatke, igrace, stare PIN-ove, odabire, bodove ni placanja.
+Ne pokrece setup i ne radi import.
+
+VRACENO IZ STAROG UI-ja:
+- KZM logo na prijavi i u izborniku
+- Premier League ljubicaste/zelene boje i stari izgled kartica
+- hamburger + klizni lijevi izbornik
+- krugovi i kola sa statusnim tockama
+- grbovi klubova u rasporedu, pickovima, statistici, tablici PL i administraciji klubova
+- istaknuta utakmica TVOJ PICK
+- stari team picker s grbovima i osnovnim bodovima
+- izgled tablica, uplata, admina i mobilnog prikaza
+
+DATOTEKE KOJE SE MIJENJAJU:
+public/index.html
+public/app.js
+public/style.css
+public/manifest.webmanifest
+public/_headers
+src/worker.js
+
+src/worker.js ima samo jednu UI-povezanu promjenu: bootstrap vraca i api_id kluba kako bi grbovi imali tocno mapiranje.
+
+KORACI:
+1. Napravi sigurnosnu kopiju trenutne mape public i src/worker.js.
+2. Kopiraj sadrzaj ovog ZIP-a preko C:\Users\dinoj\kzm-novi i potvrdi zamjenu navedenih datoteka.
+3. Otvori CMD:
+
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run deploy
+
+4. Otvori isti produkcijski URL:
+   https://kzm-novi-d9ad28.djerkic10.workers.dev
+
+5. Pritisni Ctrl+F5.
+
+NE POKRECI:
+- npm run setup
+- npm run import
+- migracije baze
+
+Ako zelis vratiti prethodni izgled, vrati backup public mape i src/worker.js te ponovno pokreni npm run deploy.

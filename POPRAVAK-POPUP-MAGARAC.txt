@@ -1,0 +1,7 @@
+KZM POPUP ZA ZADNJE MJESTO
+
+- Igrac s najmanje bodova u tekucem krugu dobiva pravi KZM popup pri svakom ulasku.
+- Poruka: Magarac jedan probudi se!
+- Ako je vise igraca izjednaceno na zadnjem mjestu, popup dobivaju svi.
+- Popup se ne prikazuje dok u krugu jos nema obracunatih bodova.
+- Zadrzane su sve prethodne funkcije paketa.

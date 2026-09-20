@@ -1,0 +1,10 @@
+KZM - live pulse fallback + poruka zadnjem igracu
+
+- Cloudflare cron i dalje radi svake minute.
+- Dok je aplikacija otvorena i utakmica je u vremenu igranja, browser svakih 20 s zove siguran /api/live/pulse fallback.
+- Server ogranicava live Football API pozive na najvise jedan u 20 s i D1 sync_lease sprjecava paralelne pozive.
+- Stari/stale FINISHED status vise ne moze trajno blokirati live oporavak; utakmica se jednom ponovno potvrdi iz API-ja i zatim se oznaci kao terminalna.
+- ESPN utrka se pokrece u istom live ciklusu.
+- Igrac koji je trenutno na najmanje bodova u tekucem krugu dobiva pri svakom ulasku poruku: PROBUDI SE, RAZMISLI DOBRO!!!!
+- Ako je vise igraca izjednaceno na dnu, poruku dobivaju svi izjednaceni.
+- Dok jos nema niti jednog obracunatog boda u krugu, poruka se ne prikazuje svima.

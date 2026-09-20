@@ -1,0 +1,35 @@
+KZM - ADMIN ISPRAVAK PICKOVA + PUSH/ODJAVA FIX
+
+Ovaj paket je KUMULATIVAN: sadrzi prethodni popravak push obavijesti i odjave te novu admin funkciju za ispravak pickova.
+
+NOVO U ADMIN POSTAVKAMA
+- Kartica: "Ispravi pick igraca"
+- Odaberi igraca, kolo, ekipu i DOUBLE.
+- Klikni "SPREMI ISPRAVAK PICKA".
+- Radi i nakon zakljucavanja kola.
+- Moze se i obrisati pogresan pick tipkom "OBRISI PICK".
+- Pravilo da igrac ne smije koristiti istu ekipu dvaput u istom krugu ostaje aktivno.
+- Pravilo jednog DOUBLE-a po krugu ostaje aktivno.
+- Ispravak brise eventualne uvezene bodove za taj pick i ponovno koristi normalni izracun iz rezultata utakmice.
+- Sve admin izmjene ulaze u audit zapis.
+
+POSTAVLJANJE
+1. Raspakiraj ZIP preko mape:
+   C:\Users\dinoj\kzm-novi
+   i potvrdi Replace / Zamijeni datoteke.
+
+2. U CMD-u:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+
+NE POKRETATI:
+- npm run setup
+- npm run import
+
+Nema nove D1 migracije i nema brisanja baze.
+
+TESTIRANO:
+- npm run check: PROLAZI
+- npm test: 48/48 PROLAZI

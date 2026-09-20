@@ -1,0 +1,40 @@
+/**
+ * KZM - PRIVATNI IZVOZ STARIH PIN-OVA
+ * Pokreni na kopiji originalnog Sheeta ako zelis dodatnu sigurnost.
+ * Samo CITA Postavke!B (ime) i G (PIN). Ne mijenja celije i ne salje podatke.
+ * Rezultat sadrzi osjetljive PIN-ove: cuvaj ga privatno i obrisi nakon prijenosa.
+ */
+function KZM_IZVOZ_STARIH_PINOVA() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('Postavke');
+  if (!sh) throw new Error('Nema lista Postavke.');
+
+  var count = typeof webBrojIgraca_ === 'function' ? Number(webBrojIgraca_()) : 25;
+  if (!Number.isInteger(count) || count < 1 || count > 200) throw new Error('Neispravan broj mjesta igraca.');
+
+  var rows = sh.getRange(3, 2, count, 6).getDisplayValues(); // B:G
+  var players = [];
+  var seen = {};
+  rows.forEach(function(r) {
+    var name = String(r[0] || '').trim();
+    if (!name) return;
+    var pin = String(r[5] || '').trim();
+    var key = name.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (seen[key]) throw new Error('Dupliciran igrac: ' + name);
+    seen[key] = true;
+    if (!/^\d{4,12}$/.test(pin)) throw new Error('PIN za ' + name + ' mora imati 4-12 znamenki.');
+    players.push({name:name, pin:pin});
+  });
+  if (!players.length) throw new Error('Nema igraca za izvoz.');
+
+  var out = {format:'kzm-pin-export-v1', exportedAt:new Date().toISOString(), players:players};
+  var text = JSON.stringify(out, null, 2);
+  var base64 = Utilities.base64Encode(text, Utilities.Charset.UTF_8);
+  var html = '<html><body style="font:15px Arial;padding:24px">' +
+    '<h2>Stari PIN-ovi su spremni</h2>' +
+    '<p>Igraci: ' + players.length + '</p>' +
+    '<p style="color:#b00020"><strong>PRIVATNO:</strong> datoteka sadrzi PIN-ove. Ne salji je nikome.</p>' +
+    '<a download="kzm-pinovi.json" href="data:application/json;base64,' + base64 + '">PREUZMI kzm-pinovi.json</a>' +
+    '<p>Nakon uspjesnog prijenosa obrisi ovu datoteku iz Downloads.</p></body></html>';
+  SpreadsheetApp.getUi().showModalDialog(HtmlService.createHtmlOutput(html).setWidth(520).setHeight(300), 'KZM - izvoz PIN-ova');
+}

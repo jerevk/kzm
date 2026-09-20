@@ -1,0 +1,35 @@
+KZM - ODOBRENJE REGISTRACIJE + AKTIVACIJA TEK U IDUCEM KRUGU
+
+Ovaj paket je kumulativan u odnosu na KZM-PUSH-GOL-KRAJ-KUMULATIVNI.zip.
+Zadrzava prethodne funkcije: push, gol/kraj push, odjavu, admin ispravak picka,
+registraciju, limit igraca, pametni live refresh i ESPN utrku izvora.
+
+NOVO:
+- samostalna registracija stvara samo ZAHTJEV; racun je neaktivan
+- novi igrac se ne prikazuje na login listi i ne moze se prijaviti
+- novi igrac ne ulazi u tablice/rezultate niti moze dobiti pick prije aktivacije
+- admin u Admin postavkama dobiva karticu "Zahtjevi za registraciju"
+- admin mora ODOBRITI ili ODBITI zahtjev
+- odobren igrac i dalje ne moze igrati u tekucem krugu
+- najranija aktivacija je sljedeci krug
+- sustav automatski aktivira odobrenog igraca kada zavrsi prethodni krug
+- u 4. krugu zahtjev se oznacava za sljedecu sezonu
+- pending zahtjev NE zauzima mjesto u limitu igraca
+- tek odobreni zahtjev rezervira mjesto u limitu
+- odbijanje oslobadja rezervirano mjesto i onemogucuje prijavu
+- postojeci rate-limit registracije ostaje ukljucen
+
+NEMA nove D1 migracije.
+NEMA setupa.
+NEMA importa.
+
+Postavljanje:
+1. Raspakiraj ZIP preko C:\Users\dinoj\kzm-novi
+2. Potvrdi Replace / Zamijeni.
+3. CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+
+Testirano: 60/60 testova + npm run check.

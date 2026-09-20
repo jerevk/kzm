@@ -1,0 +1,234 @@
+
+> kzm-novi@1.0.0 test
+> node --test tests/*.test.mjs
+
+TAP version 13
+# (node:2189) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Scoring preserves home/away/draw/double rules
+ok 1 - Scoring preserves home/away/draw/double rules
+  ---
+  duration_ms: 0.904052
+  type: 'test'
+  ...
+# Subtest: All cycle boundaries and invalid rounds
+ok 2 - All cycle boundaries and invalid rounds
+  ---
+  duration_ms: 0.18577
+  type: 'test'
+  ...
+# Subtest: Equal scores share rank; unicode normalization is stable
+ok 3 - Equal scores share rank; unicode normalization is stable
+  ---
+  duration_ms: 6.975973
+  type: 'test'
+  ...
+# Subtest: Salted hashes differ; password and pepper matter
+ok 4 - Salted hashes differ; password and pepper matter
+  ---
+  duration_ms: 88.093006
+  type: 'test'
+  ...
+# Subtest: Setup is one time and health identifies new backend
+ok 5 - Setup is one time and health identifies new backend
+  ---
+  duration_ms: 63.794028
+  type: 'test'
+  ...
+# Subtest: Private endpoints require login
+ok 6 - Private endpoints require login
+  ---
+  duration_ms: 90.693616
+  type: 'test'
+  ...
+# Subtest: Regular user cannot call admin methods
+ok 7 - Regular user cannot call admin methods
+  ---
+  duration_ms: 92.811643
+  type: 'test'
+  ...
+# Subtest: CSRF blocks foreign Origin and absent custom header
+ok 8 - CSRF blocks foreign Origin and absent custom header
+  ---
+  duration_ms: 91.912563
+  type: 'test'
+  ...
+# Subtest: Save a pick, change same round and do not leak it to another user
+ok 9 - Save a pick, change same round and do not leak it to another user
+  ---
+  duration_ms: 98.41031
+  type: 'test'
+  ...
+# Subtest: Duplicate team and double are rejected across same cycle, allowed next cycle
+ok 10 - Duplicate team and double are rejected across same cycle, allowed next cycle
+  ---
+  duration_ms: 89.850095
+  type: 'test'
+  ...
+# Subtest: Concurrent same-team requests cannot both succeed
+ok 11 - Concurrent same-team requests cannot both succeed
+  ---
+  duration_ms: 88.85879
+  type: 'test'
+  ...
+# Subtest: Past deadline, null deadline and disabled picks fail closed
+ok 12 - Past deadline, null deadline and disabled picks fail closed
+  ---
+  duration_ms: 88.318426
+  type: 'test'
+  ...
+# Subtest: Invalid round, boolean, unknown team are rejected
+ok 13 - Invalid round, boolean, unknown team are rejected
+  ---
+  duration_ms: 88.708564
+  type: 'test'
+  ...
+# Subtest: Closed round reveals saved pick and computes points
+ok 14 - Closed round reveals saved pick and computes points
+  ---
+  duration_ms: 103.692645
+  type: 'test'
+  ...
+# Subtest: Future picks do not influence results or club statistics
+ok 15 - Future picks do not influence results or club statistics
+  ---
+  duration_ms: 109.177181
+  type: 'test'
+  ...
+# Subtest: Payments support true, false, null and preserve unrelated cycles
+ok 16 - Payments support true, false, null and preserve unrelated cycles
+  ---
+  duration_ms: 90.368857
+  type: 'test'
+  ...
+# Subtest: Deactivation revokes sessions but preserves picks; admin cannot deactivate self
+ok 17 - Deactivation revokes sessions but preserves picks; admin cannot deactivate self
+  ---
+  duration_ms: 89.62101
+  type: 'test'
+  ...
+# Subtest: Password change revokes old sessions and old password
+ok 18 - Password change revokes old sessions and old password
+  ---
+  duration_ms: 150.770133
+  type: 'test'
+  ...
+# Subtest: Logout invalidates server session
+ok 19 - Logout invalidates server session
+  ---
+  duration_ms: 88.616947
+  type: 'test'
+  ...
+# Subtest: Rate limit rejects repeated login attempts
+ok 20 - Rate limit rejects repeated login attempts
+  ---
+  duration_ms: 255.216495
+  type: 'test'
+  ...
+# Subtest: Credentials never appear in normal API payloads
+ok 21 - Credentials never appear in normal API payloads
+  ---
+  duration_ms: 96.599016
+  type: 'test'
+  ...
+# Subtest: SQL injection in player names remains text
+ok 22 - SQL injection in player names remains text
+  ---
+  duration_ms: 116.44201
+  type: 'test'
+  ...
+# Subtest: Bootstrap rounds include 4 and 5 plus all four cycles
+ok 23 - Bootstrap rounds include 4 and 5 plus all four cycles
+  ---
+  duration_ms: 87.500193
+  type: 'test'
+  ...
+# Subtest: Deadline reopening needs explicit confirmation
+ok 24 - Deadline reopening needs explicit confirmation
+  ---
+  duration_ms: 87.879346
+  type: 'test'
+  ...
+# Subtest: Prepared import preserves people, payments and historical scores atomically
+ok 25 - Prepared import preserves people, payments and historical scores atomically
+  ---
+  duration_ms: 95.230694
+  type: 'test'
+  ...
+# Subtest: Invalid import changes nothing
+ok 26 - Invalid import changes nothing
+  ---
+  duration_ms: 86.791296
+  type: 'test'
+  ...
+# Subtest: Import cannot overwrite a non-empty database
+ok 27 - Import cannot overwrite a non-empty database
+  ---
+  duration_ms: 141.471228
+  type: 'test'
+  ...
+# Subtest: Source duplicate club selections are rejected rather than silently discarded
+ok 28 - Source duplicate club selections are rejected rather than silently discarded
+  ---
+  duration_ms: 40.944224
+  type: 'test'
+  ...
+# Subtest: Source score reconciliation reports mismatches
+ok 29 - Source score reconciliation reports mismatches
+  ---
+  duration_ms: 40.783451
+  type: 'test'
+  ...
+# Subtest: API mapping refuses unknown clubs and accepts explicit IDs
+ok 30 - API mapping refuses unknown clubs and accepts explicit IDs
+  ---
+  duration_ms: 0.758263
+  type: 'test'
+  ...
+# Subtest: Manual football results and closed deadlines survive sync
+ok 31 - Manual football results and closed deadlines survive sync
+  ---
+  duration_ms: 89.184042
+  type: 'test'
+  ...
+# Subtest: Fixture editor validates both scores
+ok 32 - Fixture editor validates both scores
+  ---
+  duration_ms: 85.928836
+  type: 'test'
+  ...
+# Subtest: Wrong project binding is rejected
+ok 33 - Wrong project binding is rejected
+  ---
+  duration_ms: 86.079513
+  type: 'test'
+  ...
+# Subtest: Runtime has no Apps Script dependency and no shipped private credentials
+ok 34 - Runtime has no Apps Script dependency and no shipped private credentials
+  ---
+  duration_ms: 0.762018
+  type: 'test'
+  ...
+# (node:2190) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Import status fingerprint confirms exactly one submitted snapshot
+ok 35 - Import status fingerprint confirms exactly one submitted snapshot
+  ---
+  duration_ms: 121.420927
+  type: 'test'
+  ...
+# Subtest: Read-only Apps Script exporter exports 38 rounds and no PINs
+ok 36 - Read-only Apps Script exporter exports 38 rounds and no PINs
+  ---
+  duration_ms: 2.719498
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2891.207969

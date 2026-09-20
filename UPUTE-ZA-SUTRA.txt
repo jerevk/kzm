@@ -1,0 +1,251 @@
+KZM NOVI 1.0 - UPUTE ZA SUTRA
+Zaseban Cloudflare Worker + D1. Original se ne mijenja.
+
+
+=================================================================
+PRVO: OVO JE POTPUNO ZASEBNA INSTALACIJA
+=================================================================
+Originalni KZM, Apps Script i mapa kzm-frontend-test ostaju kakvi jesu.
+Ovaj paket postavlja novi Cloudflare Worker, novu D1 bazu i novi URL. Ne koristi postojeci kzm-push-bridge kao posrednika.
+Prijava, igraci, odabiri, DOUBLE, placanja, rezultati i administracija rade iz nove baze. Jednokratni izvoz iz KOPIJE Sheeta sluzi samo prijenosu podataka. Nakon toga stranica vise ne poziva Apps Script.
+Probna verzija, ne automatski prijelaz igraca.
+Postavljanje jos nije izvrseno na tvojem Cloudflare racunu. Testiraj novu adresu prije nego je podijelis ligi. Nema dvosmjerne sinkronizacije sa starom aplikacijom.
+Danas:
+spremi ZIP i ove upute. Nista ne kopiraj u postojecu mapu i ne mijenjaj originalni deployment.
+
+
+=================================================================
+1. RASPAKIRAJ U NOVU MAPU
+=================================================================
+Raspakiraj mapu
+kzm-novi
+iz ZIP-a tako da bude ovdje:
+C:\Users\dinoj\kzm-novi
+U toj mapi moraju biti
+package.json
+,
+POKRENI-POSTAVLJANJE.cmd
+i mapa
+public
+. Ne smije biti dodatna ugnijezdena mapa
+kzm-novi\kzm-novi
+.
+Ne zamjenjujes nijedan postojeci index.html ili worker.js.
+Ovo su zasebne datoteke u zasebnoj mapi.
+
+
+=================================================================
+2. PROVJERI RACUN I MOGUCI TROSAK
+=================================================================
+Potreban je Node.js
+22.16.0 ili noviji
+, internetska veza i Cloudflare racun s pravom stvaranja Workera i D1 baze. U CMD-u mozes provjeriti
+node --version
+.
+Za ovu izvedbu preporucen je
+Workers Paid
+. Objavljena osnovna pretplata iznosi 5 USD mjesecno, uz mogucu dodatnu naplatu prema potrosnji. Free ima ogranicenje od 10 ms CPU-a po zahtjevu; provjera lozinki i uvoz mogu ga premasiti. Uspjesno lokalno testiranje ne potvrduje da ce sve stati u Free limit.
+Prije hostanja provjeri Workers plan i cijenu u vlastitom Cloudflare racunu.
+Setup ne ukljucuje placeni plan i ne prihvaca troskove u tvoje ime.
+Ne treba kupovati novu domenu za probu; setup ocekuje zaseban
+workers.dev
+URL.
+Izvori:
+Cloudflare Workers pricing
+i
+limits
+. Provjereno 12. 9. 2026. Konacni racun ovisi o planu i potrosnji; ovo nije jamstvo cijene.
+
+
+=================================================================
+3. POKRENI JEDAN POSTUPAK POSTAVLJANJA
+=================================================================
+Otvori CMD i kopiraj ove naredbe, redom:
+cd /d C:\Users\dinoj\kzm-novi
+npm install
+npm run setup
+Alternativa je dvostruki klik na
+POKRENI-POSTAVLJANJE.cmd
+. Koristi jednu od te dvije mogucnosti, ne obje istodobno.
+npm install
+instalira alate samo za ovu NOVU mapu; ne zamjenjuje postojeci projekt. Setup koristi tu lokalnu instalaciju Wranglera.
+Kad pita za ime administratora, pritisni Enter za
+Dino Jerkić
+ili upisi potpuno jednako ime kao u ligi, ukljucujuci znakove u prezimenu. Zatim upisi
+NOVO
+da potvrdis stvaranje zasebne instalacije. Ako koristis samo jedan Cloudflare racun, na pitanje za Account ID pritisni Enter. Ako ih imas vise, navedi ID zeljenog racuna iz Cloudflare nadzorne ploce.
+Setup prikazuje novo ime, primjerice
+kzm-novi-a1b2c3
+, i odgovarajucu novu bazu. Stvarni nastavak bit ce drugaciji. Ako se otvori preglednik za Cloudflare prijavu, prijavi se na svoj racun. Ako Wrangler trazi potvrdu primjene migracije, provjeri da se odnosi na upravo prikazanu NOVU bazu pa potvrdi.
+Ne upisuj naziv originalnog KZM projekta. Ne pokreci
+wrangler pages deploy
+,
+wrangler init
+ni naredbe iz starih poruka.
+Setup stvara bazu, povezuje je s novim Workerom, objavljuje stranicu, sprema tajne i provjerava administratorsku prijavu. Ako stane, sacuvaj ispis. Ponovni
+npm run setup
+nastavlja zabiljezene korake; ne brisi
+private
+.
+
+
+=================================================================
+4. OTVORI NOVU ADRESU I NOVE PRISTUPNE PODATKE
+=================================================================
+Nakon poruke GOTOVO otvori ovu datoteku u Notepadu:
+C:\Users\dinoj\kzm-novi\private\PRISTUP-ADMIN.txt
+U njoj su
+stvarni novi URL, administratorsko ime i nova nasumicna lozinka
+. Otvori taj URL i prijavi se. Stari PIN ne koristi se. U novom sucelju vidljiv je natpis da je KZM odvojen.
+Baza je sada namjerno prazna i spremanje odabira zaustavljeno.
+Ne dodaj klubove ili igrace prije uvoza
+: prvi uvoz dopusten je samo u praznu bazu s jednim administratorom.
+Mapa
+private
+nije za dijeljenje. Sadrzi tajne, izvjestaje i pristupne kodove. Ne stavljaj je u public, javni repozitorij ili grupni chat. Sacuvaj privatnu sigurnosnu kopiju te mape zajedno s wrangler.json.
+
+
+=================================================================
+5. NAPRAVI KOPIJU STARE LIGE I IZVEZI PODATKE
+=================================================================
+U Google Sheetu stare lige odaberi
+Datoteka / File > Napravi kopiju / Make a copy
+. Nazovi kopiju
+KZM-KOPIJA-ZA-UVOZ
+. Provjeri naslov: dalje radis samo u toj kopiji.
+U KOPIJI otvori
+Prosirenja / Extensions > Apps Script
+. Dodaj novu Script datoteku
+KzmIzvoz
+. U Notepadu otvori datoteku iz ovog paketa:
+migration\KzmIzvoz-za-kopiranje.txt
+Kopiraj njen cijeli sadrzaj u tu novu datoteku i spremi. Ovo je jedino lijepljenje koda: ne spajas dijelove i ne mijenjas postojece datoteke. U izborniku funkcija odaberi
+KZM_IZVOZ_ZA_NOVU_BAZU
+pa Run / Pokreni. Ako Google trazi odobrenje, provjeri da je to tvoja kopija projekta i pregledaj trazena prava.
+Vrati se u KOPIJU Sheeta. Pojavit ce se prozor s poveznicom
+PREUZMI kzm-izvoz.json
+. Spremi je u Downloads. Izvoz cita igrace, klubove i njihove bodove, rokove, raspored, postojece odabire, DOUBLE, placanja i postojece bodove.
+Ne izvozi PIN-ove, ne upisuje u celije i ne salje podatke drugom servisu.
+Ako prozor prijavi nepoznat klub, duplikat, neispravan datum ili broj igraca, stani i sacuvaj poruku. Ne brisi stvarne odabire samo da bi uvoz prosao. U kopiranom projektu ne pokreci druge funkcije poput POSTAVI_SVE_NOVO.
+
+
+=================================================================
+6. UVEZI U NOVU BAZU
+=================================================================
+U istom CMD prozoru, iz nove mape, pokreni:
+npm run import -- "C:\Users\dinoj\Downloads\kzm-izvoz.json"
+Ako si datoteku spremio drugdje ili je preglednik dodao (1) u ime, upisi njezinu stvarnu putanju. Program prvo provjerava podatke i prikazuje broj igraca, klubova, kola, utakmica, odabira i uplata. Tek kada upises
+UVEZI
+, salje ih u NOVU bazu.
+Upozorenja o razlikama bodova, nedostajucim rokovima ili nepotpunim kolima moras provjeriti prije stvarnog prijelaza. Ne izmisljaju se klubovi, osnovni bodovi ni izgubljeni podaci. Neispravni duplikati odabira ili DOUBLE zaustavljaju uvoz.
+Nakon potvrde nastaju privatni
+PRISTUPI-...txt
+i
+UVOZ-...json
+u mapi
+private
+. Svaki igrac dobiva novu lozinku; administrator zadrzava lozinku iz koraka 4. Svakome se kasnije salje
+samo njegov pristupni kod
+, nikad cijeli popis.
+Spremanje odabira nakon uvoza i dalje je zaustavljeno. To je namjerno: prvo usporedba, zatim ukljucivanje.
+Ako internet prekine odgovor nakon uvoza, ne ponavljaj ga napamet. Pokreni
+npm run import -- --recover
+. Provjera usporedjuje identifikator tocno poslanih podataka i moze dovrsiti izgubljenu potvrdu. Ako i ona stane, sacuvaj private i poruku; ne salji nepotvrdjene kodove.
+
+
+=================================================================
+7. PROVJERI IGRU PRIJE UKLJUCIVANJA
+=================================================================
+Usporedi staru ligu i novu probnu adresu: broj i imena igraca, aktivnost, uplate za sva cetiri kruga, odabire za vec odigrana kola, DOUBLE i tablice cetiriju krugova te ukupne sezone.
+Postojeci bodovi iz uvoza ostaju sacuvani kao povijesni zapisi. Opcija
+Preracunaj uvezene bodove OVOG kola
+ih namjerno zamjenjuje izracunom iz novog rasporeda: ne koristi je bez sigurnosne kopije i provjere. Novi odabiri koriste prenesena pravila bodovanja.
+Na probnoj adresi mozes zatim ukljuciti odabire u
+Admin > Omoguci odabire
+. Prijavi se drugim racunom i provjeri spremanje odabira, zabranu istog kluba i drugog DOUBLE u istom krugu, prijelaz iz Kola 4 u Kolo 5, zakljucano kolo i skrivanje tudjih ekipa prije roka. Ako su Kolo 4/5 vec zatvoreni, samo provjeri prikaz; za probni odabir koristi buduce otvoreno kolo.
+Rok se provjerava na posluzitelju.
+Kolo bez roka zatvoreno je za spremanje
+, umjesto da se nehotice otvori. Rokove mozes urediti u
+Sustav
+. Ponovno otvaranje zakljucanog kola zahtijeva izricitu potvrdu.
+Testiraj promjenu placanja pa je vrati, novog probnog igraca i deaktivaciju samo probnog racuna. Izmjene su samo u novoj bazi. Ovo jos nije razlog da original prestane biti sluzbena liga.
+npm run backup
+Ta naredba sprema SQL sigurnosnu kopiju NOVE baze u
+private\backups
+. SQL sadrzi osjetljive podatke i ne salje se igracima.
+
+
+=================================================================
+8. NOGOMETNI API JE ODVOJENI, OPCIONALNI KORAK
+=================================================================
+Raspored i rezultati iz izvoza dovoljni su za usporedbu. Za automatsko osvjezavanje treba tvoj
+football-data.org API kljuc
+. Ne salji ga u chat. Nakon prvog uvoza u CMD-u pokreni:
+npm run football-key
+Wrangler ce zatraziti kljuc i spremiti ga kao tajnu NOVOG Workera. Zatim u novoj aplikaciji klikni
+Admin > Osvjezi nogometni API
+. Bez kljuca nema vanjskih poziva; utakmice se mogu urediti rucno u Sustavu.
+Podeseno je periodicko provjeravanje svakih
+15 minuta
+, ne trenutni prijenos uzivo. Brzina otvaranja stranice ne ovisi o novom pozivu nogometnom API-ju. Dozvoljena sezona, dostupnost i kvota ovise o tvojem API racunu. Kljuc, mapiranje klubova i pozivi nisu provjereni na tvojem racunu.
+Klubovi se povezuju preko API ID-a ili izricitih poznatih naziva. Nepoznato povezivanje zaustavlja sinkronizaciju; ne pogadja se. Rucni rezultati i rucni rokovi se cuvaju. API ne otvara sam vec zakljucano kolo. Tablica Premier lige racuna se iz spremljenih zavrsenih utakmica i ne ukljucuje eventualna sluzbena oduzimanja bodova.
+
+
+=================================================================
+9. STVARNI PRIJELAZ LIGE RADI SE ODVOJENO
+=================================================================
+Sutrasnje postavljanje je proba.
+Dok liga radi u originalu, original je mjerodavan. Nakon probnih izmjena nove baze ne smijes samo podijeliti njen URL kao produkciju, jer u staroj ligi u medjuvremenu mogu nastati novi odabiri i uplate.
+Prije stvarnog prijelaza: dogovori kratko razdoblje bez upisa, zaustavi upise kroz SVE stare ulaze (stari Apps Script i stari Cloudflare frontend), napravi zavrsni izvoz te usporedi podatke. Za cistu zavrsnu instalaciju nakon potrosene probe koristi:
+npm run setup -- --new
+To stvara jos jednu zasebnu bazu i adresu. Stara proba ostaje na Cloudflareu; lokalni postavke, tajne i admin podaci prethodne probe arhiviraju se u
+private\arhiva-...
+. Ne gasi se i ne prepisuje original. Zatim se ponavlja uvoz zavrsnog izvoza u novu praznu instalaciju.
+Tek nakon zavrsne usporedbe i sigurnosne kopije ukljuci nove odabire i posalji zavrsni URL s odgovarajucim novim kodovima. Stari sustav ostaje samo arhiva. Vec izdani probni kodovi ne vrijede za drugu instalaciju.
+Nakon sto novi sustav primi stvarne upise, povratak na staru ligu nije samo otvaranje starog linka. Najprije treba sacuvati i uskladiti nove odabire i uplate, inace se gube promjene nastale nakon prijelaza. Ovaj paket ne automatizira takvo uskladjivanje.
+Za kasnije objave koda iste nove instalacije koristi samo
+npm run deploy
+iz ove mape. Ta naredba ne brise bazu. Zeljena vlastita domena povezuje se tek nakon odabira zavrsne instalacije; paket je ne mijenja automatski.
+
+
+=================================================================
+STO JE PROVJERENO I STO JOS NIJE
+=================================================================
+36 automatiziranih lokalnih testova prolazi.
+Obuhvacaju pravila, SQL ogranicenja, istodobne odabire, autentikaciju i ovlasti, rokove, uplate, uvoz, oporavak potvrde te citajuci izvoz bez PIN-ova. Testovi koriste stvarni SQLite i isti JavaScript backend, uz lokalni adapter za D1.
+Desktop i mobilni prikaz provjereni su u Chromiumu sa stvarnim lokalnim HTTP backendom preko testnog transporta. Provjereni su admin placanje, igrac, utakmica, bodovi kluba, tablice, statistika i odabiri Kola 4/5. To
+nije
+provjera pravog Cloudflare runtimea, Workers cookie-ja preko javnog HTTPS-a ili uvoza tvoje stvarne lige. Na slikama su izmisljeni podaci.
+Wrangler instalacija/objava nisu izvrsene ovdje: nema prijave na tvoj racun, a dohvat npm paketa nije bio dostupan u ovom okruzenju. Verzija mora proci probnu cloud objavu i usporedbu stvarnog izvoza. Stvarna razlika u brzini nije izmjerena.
+Ova prva izvedba ne prenosi automatski push obavijesti, e-mail podsjetnike ni stare Google triggere.
+Namijenjena je jednoj ligi/sezoni 2026/27, s do 200 igraca pri uvozu. Osnovne stranice i pravila su pripremljeni; nije preslikan svaki detalj stare aplikacije. Dodavanje na pocetni zaslon podrzano je manifestom, ali nema offline spremanja ili pozadinskih push obavijesti.
+Sigurnosne mjere ukljucene su u kod, ali nisu zamjena za neovisni sigurnosni pregled prije sirokog javnog koristenja. Nije mjereno opterecenje 200 istodobnih igraca.
+
+
+=================================================================
+KAD NESTO STANE
+=================================================================
+Ne popravljaj original i ne pokreci nasumicne stare naredbe.
+Posalji samo poruku pogreske i ime koraka. Nemoj slati private, API kljuc, lozinke, bazu ni cijeli izvoz.
+Problem
+Sto napraviti
+Node nije pronadjen ili je prestar
+Instaliraj Node.js 22.16+ pa ponovno otvori CMD. Ne mijenjaj datoteke aplikacije.
+Nedostaje Wrangler
+Pokreni npm install u NOVOJ mapi. Nije potrebna globalna instalacija.
+Cloudflare 401/403 ili vise racuna
+Provjeri autorizirani racun i Account ID. Ne odabiri stari projekt kao zamjenu.
+Cloudflare 1102
+Provjeri CPU limit i Workers plan; lokalni test nije dokaz rada na Free planu.
+Uvoz odbijen jer baza nije prazna
+Ne brisi podatke. Za novu probu koristi setup --new prema koraku 9.
+Izgubljena potvrda uvoza
+npm run import -- --recover. Ako nema potvrde, sacuvaj privatne zapise i stani.
+Nedostaje raspored/rok ili nepoznat klub
+Pregledaj izvjestaj izvora i povezivanje. Ne izmisljaj rezultate ili rokove.
+Stari PIN ne radi
+Nova instalacija ima nove lozinke. Koristi PRISTUP-ADMIN.txt ili potvrdeni pojedinacni kod.
+Zaboravljena admin lozinka
+Prvo provjeri vlastitu privatnu kopiju. Nema javnog gumba koji zaobilazi admin provjeru; potreban je oporavak s pristupom vlasnika baze.
+Sigurno zaustavljanje:
+zatvori CMD ili pritisni Ctrl+C. Novostvorene Cloudflare resurse to ne brise. Original nastavlja raditi. Brisanje neiskoristene probe radi se kasnije samo po njezinu tocno zabiljezenom nazivu.

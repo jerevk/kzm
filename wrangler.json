@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kzm-novi-d9ad28",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kzm-novi-d9ad28-db",
+      "database_id": "2f803839-6e9d-47ac-93a0-5d7412c0ec83",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PROJECT_ID": "c4ce7f17-0775-4466-bac6-caa3f7a56cb9",
+    "SEASON": "2026"
+  },
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": false
+  }
+}

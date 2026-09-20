@@ -1,0 +1,36 @@
+KZM - FUNKCIJE VRACENE PRED PUSH OBAVIJESTI
+
+Ovaj patch NE dira D1 podatke, stare PIN-ove, odabire, rezultate ni placanja.
+
+Vraceno / dodano:
+1. "Odabiri igraca" ne prikazuju se prije zakljucavanja kola.
+2. Swipe s lijevog ruba udesno otvara izbornik; swipe ulijevo ga zatvara.
+3. Klik na "Tablica" prvo prikazuje AKTIVNI KRUG. Ukupna tablica ostaje kao dodatna opcija na dnu izbornika.
+4. U stupcu DOUBLE pise tocno KOLO u kojem je x2 iskoristen (npr. "Kolo 4").
+5. Pobjednik / pobjednici kola vraceni su nakon zavrsetka svih utakmica kola.
+6. Popup za pobjednika / pobjednike kola prikazuje se jednom po rezultatu na uredjaju.
+7. Pobjednik / pobjednici zavrsenog kruga vraceni su u Tablicu, zajedno s popupom.
+8. Login sada nudi popis aktivnih igraca. Igrac bira ime i upisuje samo svoj stari PIN / lozinku.
+9. Redoslijed igraca iz prethodnog patcha ostaje sacuvan.
+
+PRIMJENA
+1. U CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run backup
+
+2. Raspakiraj ovaj ZIP preko:
+   C:\Users\dinoj\kzm-novi
+   i potvrdi zamjenu datoteka.
+
+3. U CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm test
+   npm run deploy
+
+4. Na stranici pritisni Ctrl + F5.
+
+NE pokretati setup.
+NE pokretati import.
+NE mijenjati bazu.
+
+Nakon ovoga mozemo prijeci na push obavijesti.

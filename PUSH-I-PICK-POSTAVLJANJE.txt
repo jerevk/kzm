@@ -1,0 +1,59 @@
+KZM - PUSH + ZAKLJUCANI SPREMLJENI PICK + STARI REDOSLIJED EKIPA
+===============================================================
+
+OVAJ PAKET SE KOPIRA PREKO POSTOJECE PRODUKCIJE C:\Users\dinoj\kzm-novi.
+NE POKRECI setup. NE POKRECI import. BAZA I STARI PIN-OVI OSTAJU.
+
+STO JE PROMIJENJENO
+-------------------
+1. Nakon SPREMI PICK, odabir se prikazuje kao SPREMLJENI PICK i forma je zatvorena.
+2. Ispod spremljenog picka prikazuje se TOCNO TA UTAKMICA.
+3. Za izmjenu igrac mora prvo kliknuti PROMIJENI PICK, pa tek onda moze spremiti novi pick.
+4. Nakon isteka roka promjena i dalje nije moguca - server/D1 je zadnja zastita.
+5. Ekipe u pickeru su poredane po osnovnim bodovima od najmanjih prema najvecima (u tvojoj ligi 3,4,5,6,7), a unutar iste vrijednosti ostaje izvorni redoslijed iz uvoza, ne abeceda.
+6. OneSignal push radi iz NOVOG Cloudflare/D1 Workera, bez Apps Scripta.
+7. Push: podsjetnik igracima bez picka kada rok udje u zadnja 3 sata.
+8. Push: obavijest svima kada se kolo zakljuca.
+9. Push: pobjednik/pobjednici kola nakon sto su sve utakmice kola zavrsene.
+10. Push: pobjednik/pobjednici kruga nakon zavrsnog kola kruga.
+11. Prvi push cron napravi baseline starih kola - ne salje retroaktivno desetke starih obavijesti.
+12. U meniju postoji UKLJUCI OBAVIJESTI. Igrac ne upisuje ime/PIN ponovno; push se veze uz vec prijavljenog igraca.
+13. Admin ima TEST PUSH.
+
+DEPLOY
+------
+1) Backup:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run backup
+
+2) Kopiraj sadrzaj ovog ZIP-a preko C:\Users\dinoj\kzm-novi
+
+3) Provjera:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm test
+   npm run check
+
+   Ocekivano: 43 testa, 43 prolaze, 0 pada.
+
+4) Deploy:
+   npm run deploy
+
+ONESIGNAL - JEDNOKRATNO
+-----------------------
+Produkcijski origin je:
+https://kzm-novi-d9ad28.djerkic10.workers.dev
+
+U OneSignal Web postavkama Site URL mora odgovarati tom originu.
+Service worker je na rootu: /OneSignalSDKWorker.js
+
+Na NOVI worker postavi App ID i API key lokalno u CMD-u. NEMOJ ih slati u chat:
+
+npx wrangler secret put ONESIGNAL_APP_ID --config wrangler.json --name kzm-novi-d9ad28
+npx wrangler secret put ONESIGNAL_API_KEY --config wrangler.json --name kzm-novi-d9ad28
+
+Nakon toga otvori produkciju, Ctrl+F5, prijavi se i u izborniku klikni UKLJUCI OBAVIJESTI te dopusti browseru obavijesti.
+Zatim kao admin otvori Admin postavke i klikni TEST PUSH.
+
+NAPOMENA
+--------
+Web push pretplate su vezane uz tocnu domenu/origin. Igraci se na novoj produkcijskoj adresi moraju ponovno prijaviti na push jednim klikom "Ukljuci obavijesti".

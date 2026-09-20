@@ -1,0 +1,2 @@
+import fs from 'node:fs';import path from 'node:path';import {root,verifyConfig,wrangler,fail} from './common.mjs';
+try{const {state}=verifyConfig();const dir=path.join(root,'private','backups');fs.mkdirSync(dir,{recursive:true});const target=path.join(dir,`${state.name}-${new Date().toISOString().replace(/[:.]/g,'-')}.sql`);await wrangler(['d1','export',state.name+'-db','--remote','--output',target,'--config','wrangler.json']);console.log('Privatni backup: '+target+'\nSadrzi osjetljive podatke. Ne stavljaj ga u public/.');}catch(e){fail(e);}

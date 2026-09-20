@@ -1,0 +1,18 @@
+KZM NOVI - POPRAVAK NEPOTVRDENOG UVOZA
+
+1. Raspakiraj ovaj ZIP PREKO mape C:\Users\dinoj\kzm-novi
+   Dodaje samo scripts\import-repair.mjs. Ne mijenja postojece datoteke.
+
+2. CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   node scripts\import-repair.mjs
+
+3. Skripta prvo samo prikazuje stanje nove D1 baze.
+   Ako baza ima nepotvrdene podatke, za stvarno ciscenje trazi tocnu potvrdu:
+   OCISTI NOVU BAZU
+
+4. Prije ciscenja automatski sprema SQL backup nove D1 baze u private\backups.
+   Originalni KZM i Google Sheet ne dira.
+
+5. Nakon poruke POPRAVAK GOTOV ponovno pokreni:
+   npm run import -- "C:\Users\dinoj\Downloads\kzm-izvoz.json"

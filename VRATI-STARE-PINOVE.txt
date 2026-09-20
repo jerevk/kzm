@@ -1,0 +1,22 @@
+KZM NOVI - VRACANJE STARIH PIN-OVA
+
+Ovaj patch ne mijenja odabire, bodove, uplate, klubove ni raspored.
+Mijenja samo prijavu: stari KZM PIN-ovi ponovno postaju aktivni.
+
+1) Kopiraj sadrzaj ovog patcha PREKO C:\Users\dinoj\kzm-novi
+2) CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run deploy
+3) U kopiji starog Google Sheeta: Extensions > Apps Script > nova datoteka KzmPinovi.
+   U nju kopiraj migration\KzmPinovi-za-kopiranje.txt.
+   Pokreni KZM_IZVOZ_STARIH_PINOVA i preuzmi kzm-pinovi.json u Downloads.
+4) CMD:
+   node scripts\restore-old-pins.mjs "C:\Users\dinoj\Downloads\kzm-pinovi.json"
+5) Kad pita, upisi tocno: VRATI STARE PINOVE
+6) Odjavi se s nove stranice i testiraj starim PIN-om.
+7) Nakon provjere obrisi kzm-pinovi.json iz Downloads.
+
+VAZNO:
+- Patch zahtijeva PIN od 4 do 12 znamenki.
+- Generirani novi pristupni kodovi prestaju vrijediti nakon vracanja starih PIN-ova.
+- Originalni Google Sheet se ne mijenja.

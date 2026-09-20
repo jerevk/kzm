@@ -1,0 +1,26 @@
+KZM - UTRKA IZVORA (ESPN vs football-data.org)
+
+Ovo je kumulativni patch preko zadnje KZM verzije.
+
+Sto radi:
+- NE mijenja izvor bodovanja: football-data.org i dalje ostaje jedini izvor koji azurira produkcijske rezultate.
+- ESPN se koristi samo kao dijagnosticki usporedni izvor.
+- ESPN se zove samo dok postoji aktivna Premier League utakmica.
+- Kad nema utakmica, nema ESPN ni football-data.org live poziva.
+- U D1 se automatski stvara mala tablica source_race s vremenom kada je svaki izvor prvi put prijavio promjenu rezultata/statusa.
+- Admin postavke dobivaju karticu "Utrka izvora" koja pokazuje ESPN i football-data.org vrijeme i razliku u sekundama.
+- Tijekom aktivne utakmice Admin ekran se tiho osvjezava svakih 20 sekundi; API izvori se i dalje dohvaćaju po Cloudflare cron ritmu.
+
+Postavljanje:
+1. Raspakiraj ZIP direktno preko C:\Users\dinoj\kzm-novi i potvrdi Replace/Zamijeni.
+2. Ne pokreci setup i ne pokreci import.
+3. U CMD-u:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+4. Otvori Admin postavke -> Utrka izvora.
+
+Napomena:
+- Tablica source_race je dijagnosticka i nema nikakav utjecaj na pickove, bodove ili pobjednike.
+- Ako ESPN privremeno ne radi, football-data.org produkcijska sinkronizacija nastavlja raditi; Admin samo prikazuje ESPN gresku.

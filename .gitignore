@@ -1,0 +1,22 @@
+# Dependencies and Cloudflare local state
+node_modules/
+.wrangler/
+
+# Local/private secrets, access files and database backups
+private/*
+!private/README.txt
+.dev.vars*
+!.dev.vars.example
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Archives / temporary files
+*.zip
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

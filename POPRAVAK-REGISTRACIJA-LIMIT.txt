@@ -1,0 +1,14 @@
+KZM - REGISTRACIJA + LIMIT IGRACA
+
+Dodano u zadnji kumulativni paket:
+- Registracija izravno na login ekranu.
+- Ime i prezime + PIN + potvrda PIN-a.
+- Nakon registracije korisnik se automatski prijavljuje.
+- Admin postavke: OTVORENA/ZATVORENA registracija.
+- Admin postavke: podesiv limit aktivnih igraca (1-200), zadano 40 ako postavka jos ne postoji.
+- Limit vrijedi i za javnu registraciju, admin dodavanje i ponovno aktiviranje igraca.
+- Postojeci igraci i pickovi se ne mijenjaju.
+- Push, odjava i admin ispravak picka ostaju u paketu.
+
+Instalacija: raspakirati preko C:\Users\dinoj\kzm-novi, Replace, zatim npm run check, npm test, npm run deploy.
+NE pokretati setup niti import.

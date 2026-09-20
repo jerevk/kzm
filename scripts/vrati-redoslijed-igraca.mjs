@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const exportFile=path.resolve(process.argv[2] || path.join(os.homedir(),'Downloads','kzm-izvoz.json'));
+const configFile=path.join(root,'wrangler.json');
+if(!fs.existsSync(exportFile))throw new Error('Ne nalazim zavrsni kzm-izvoz.json: '+exportFile);
+if(!fs.existsSync(configFile))throw new Error('Ne nalazim wrangler.json u: '+root);
+const raw=JSON.parse(fs.readFileSync(exportFile,'utf8'));
+if(raw?.format!=='kzm-export-v1'||!Array.isArray(raw.players)||!raw.players.length)throw new Error('Datoteka nije valjani zavrsni KZM izvoz.');
+const names=raw.players.map(x=>String(x?.name||'').trim()).filter(Boolean);
+if(new Set(names.map(x=>x.toLocaleLowerCase('hr'))).size!==names.length)throw new Error('Izvoz sadrzi duplicirana imena igraca.');
+const cfg=JSON.parse(fs.readFileSync(configFile,'utf8'));
+const db=(cfg.d1_databases||[]).find(x=>x.binding==='DB')?.database_name || (cfg.d1_databases||[])[0]?.database_name;
+if(!db)throw new Error('U wrangler.json nema D1 baze.');
+const value=JSON.stringify(names).replaceAll("'","''");
+const sql=`INSERT INTO meta(key,value) VALUES('player_order','${value}') ON CONFLICT(key) DO UPDATE SET value=excluded.value;`;
+const npx=process.platform==='win32'?'npx.cmd':'npx';
+console.log('Vracam izvorni redoslijed igraca iz zavrsnog izvoza...');
+console.log('Igraca:',names.length,'| Baza:',db);
+const r=spawnSync(npx,['wrangler','d1','execute',db,'--remote','--config','wrangler.json','--command',sql,'--yes'],{cwd:root,stdio:'inherit'});
+if(r.error)throw r.error;
+if(r.status!==0)throw new Error('Wrangler nije uspio spremiti redoslijed igraca.');
+console.log('\nGOTOVO: redoslijed igraca je vracen iz kzm-izvoz.json.');

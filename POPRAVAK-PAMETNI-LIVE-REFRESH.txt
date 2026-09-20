@@ -1,0 +1,25 @@
+KZM - PAMETNI LIVE FOOTBALL REFRESH
+
+Ovaj paket je kumulativan: zadrzava registraciju, limit igraca, admin ispravak pickova, push i odjavu.
+
+NOVO:
+- Cloudflare cron se pri npm run deploy automatski postavlja na svaku 1 minutu.
+- Cron svake minute prvo cita D1. To NIJE Football API poziv.
+- Football API se NE poziva ako nijedna utakmica nije pocela.
+- Kad utakmica dodje do vremena pocetka, povlace se samo API ID-evi utakmica koje su pocele i nisu zavrsile.
+- Ako vise utakmica igra istodobno, njihovi ID-evi idu u jedan Football API zahtjev.
+- FINISHED, AWARDED, POSTPONED, SUSPENDED i CANCELLED prestaju se povlaciti.
+- Zastitni live prozor je najvise 5 sati od zapisanog pocetka.
+- Ako API vrati novi kasniji kickoff, D1 se azurira i polling staje do novog termina.
+- Rucni admin gumb i dalje radi puni refresh cijelog rasporeda.
+- Dok je utakmica u live prozoru, otvoreni KZM ekran cita D1 svakih 20 sekundi, bez dodatnog Football API poziva.
+
+POSTAVLJANJE:
+1. Raspakiraj ovaj ZIP preko C:\Users\dinoj\kzm-novi i potvrdi Replace/Zamijeni.
+2. CMD:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+3. Ne pokreci setup i ne pokreci import.
+4. Nakon deploya preporuka je JEDNOM u Admin postavkama kliknuti "RUCNO OSVJEZI CIJELI RASPORED" kako bi svi kickoffi i API ID-evi bili aktualni. Nakon toga automatski sustav na dan bez aktivnih utakmica radi 0 Football API poziva.

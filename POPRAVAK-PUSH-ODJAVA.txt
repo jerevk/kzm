@@ -1,0 +1,34 @@
+KZM - POPRAVAK PUSH OBAVIJESTI I ODJAVE
+
+Sto je popravljeno:
+- CSP vise ne blokira OneSignal sync skriptu s api.onesignal.com.
+- Uklonjen je nepotreban preconnect prema starom kzm-push-bridge logu koji je stvarao CSP gresku.
+- OneSignal inicijalizacija ima timeout i retry umjesto beskonacnog cekanja.
+- Ukljucivanje push obavijesti provjerava stvarnu browser dozvolu i daje jasnu poruku ako je blokirana.
+- Odjava vise NIKADA ne ceka OneSignal. Server session se odjavljuje neovisno o pushu.
+- Odjava radi i ako je push trenutno zapeo ili je OneSignal nedostupan.
+
+POSTAVLJANJE
+1. Raspakiraj ovaj ZIP direktno u:
+   C:\Users\dinoj\kzm-novi
+   i potvrdi Replace/Overwrite za postojece datoteke.
+
+2. U CMD-u:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+
+NE POKRECI setup.
+NE POKRECI import.
+NE MIJENJAJ D1 bazu.
+OneSignal secrets ostaju spremljeni u Cloudflareu.
+
+Nakon deploya:
+- Ctrl+F5 na produkcijskoj stranici.
+- Probaj prvo ODJAVA.
+- Ponovno se prijavi.
+- Klikni Ukljuci obavijesti i prihvati browser dozvolu.
+- Zatim u Admin postavkama klikni TEST PUSH.
+
+Lokalna provjera paketa: npm run check OK; 45/45 testova prolazi.

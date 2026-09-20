@@ -1,0 +1,37 @@
+KZM - PUSH ZA TVOJU EKIPU
+
+Ovaj kumulativni paket se nastavlja na KZM-UTRKA-IZVORA-ESPN-KUMULATIVNI.zip.
+Zadrzava registraciju, limit igraca, admin ispravak picka, push, odjavu,
+pametni live refresh i utrku ESPN / football-data.org.
+
+NOVO:
+- igrac dobiva push kad njegova odabrana ekipa zabije gol
+- igrac dobiva push kad njegova odabrana ekipa primi gol
+- nakon zavrsetka dobiva konacni rezultat, ishod i osvojene KZM bodove
+- DOUBLE se automatski vidi u konacnom broju bodova jer se koriste ista KZM pravila bodovanja
+- push ide samo igracima koji su odabrali jednu od ekipa u toj utakmici
+- dogadaji se pamte u D1 meta tablici i ne salju se dvaput
+- kod prvog pokretanja za vec zapocetu utakmicu trenutni rezultat se postavlja kao pocetno stanje, da ne stizu stari golovi retroaktivno
+
+Primjeri:
+  ⚽ Arsenal je zabio!
+  Arsenal 1:0 Chelsea
+
+  🥅 Arsenal je primio gol
+  Arsenal 1:1 Chelsea
+
+  ✅ Kraj: Arsenal – pobjeda
+  Arsenal 2:1 Chelsea · Osvojio si 6 bodova.
+
+NAPOMENA:
+Gol push trenutno prati rezultat koji KZM upise iz sluzbenog football-data.org live refresha.
+ESPN je i dalje samo dijagnosticka utrka i ne mijenja bodovanje niti salje gol push.
+
+POSTAVLJANJE:
+1. Raspakiraj preko C:\Users\dinoj\kzm-novi i potvrdi Replace.
+2. Pokreni:
+   cd /d C:\Users\dinoj\kzm-novi
+   npm run check
+   npm test
+   npm run deploy
+3. Ne pokreci setup i ne pokreci import.
