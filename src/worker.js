@@ -272,6 +272,14 @@ export async function handle(request,env){
  if(path==='/api/standings'&&method==='GET')return json(await standings(env));
  assert(path.startsWith('/api/admin/'),'Nepoznata adresa.',404);requireAdmin(u);
  if(path==='/api/admin/panel'&&method==='GET')return json(await adminPanel(env));
+ if(path==='/api/admin/points-diagnostics'&&method==='GET'){
+  const n=integer(Number(url.searchParams.get('round')),1,38,'kolo');
+  const deadline=await first(env,'SELECT deadline FROM rounds WHERE number=?',n);
+  const fixtures=await all(env,"SELECT status,home_score,away_score FROM fixtures WHERE round_no=?",n);
+  const picks=await all(env,`SELECT p.player_id,p.imported_points,s.points,s.match_status,s.home_score,s.away_score FROM picks p JOIN pick_scores s ON s.player_id=p.player_id AND s.round_no=p.round_no WHERE p.round_no=?`,n);
+  return json({ok:true,round:n,deadline:deadline?.deadline??null,locked:deadline?.deadline!=null&&Number(deadline.deadline)<=now(),fixtures:fixtures.length,finished:fixtures.filter(f=>['FINISHED','AWARDED'].includes(f.status)&&f.home_score!==null&&f.away_score!==null).length,picks:picks.length,imported:picks.filter(p=>p.imported_points!==null).length,scored:picks.filter(p=>p.points!==null).length,pending:picks.filter(p=>p.points===null).length,missingMatch:picks.filter(p=>p.match_status===null).length});
+ }
+ 
  if(path==='/api/admin/import-status'&&method==='GET'){const record=await env.DB.prepare("SELECT summary FROM import_history WHERE id='initial'").first();const f=await env.DB.prepare("SELECT value FROM meta WHERE key='import_fingerprint'").first();return json({ok:true,imported:!!record,fingerprint:f?.value||null,summary:record?JSON.parse(record.summary):null});}
  if(path==='/api/admin/import'&&method==='POST')return json(await importDataset(env,u,await bodyJson(request,1800000)));
  if(path==='/api/admin/sync'&&method==='POST'){await bodyJson(request);return json(await syncFootball(env,true));}
