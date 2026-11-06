@@ -220,6 +220,12 @@ export async function handle(request,env){
  assert(env.DB,'D1 baza nije povezana.',503);
  const project=await first(env,"SELECT value FROM meta WHERE key='project_id'");
  assert(!project||project.value===env.PROJECT_ID,'Pogresna baza za ovu instalaciju.',503);
+ // Official 2026/27 PL round 10 starts on 6 Nov 2026 at 20:00 UTC (Everton-Coventry).
+ // KZM locks picks two hours before kickoff. Clamp any stale or manually extended deadline.
+ if(Number(env.SEASON||2026)===2026){
+  const maxDeadline=Date.parse('2026-11-06T18:00:00Z')/1000;
+  await stmt(env,'UPDATE rounds SET deadline=? WHERE number=10 AND (deadline IS NULL OR deadline>?)',maxDeadline,maxDeadline).run();
+ }
  if(path==='/api/health'&&method==='GET')return json({ok:true,version:'1.1.0-live-fallback',database:'D1',separate:true});
  if(path==='/api/login-players'&&method==='GET')return json(await loginPlayers(env));
  if(path==='/api/setup'&&method==='POST'){
