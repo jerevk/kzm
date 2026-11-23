@@ -201,8 +201,28 @@ function doubleBadge(p,label='x2 DOUBLE'){
 }
 
 function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.away_id);return `<div class="fixture ${mine?'my-fixture':''}"><div class="home">${esc(f.home_name)}${clubBadge(f.home_name,'fixture-badge')}</div><div class="score">${score(f)}<small>${f.kickoff?esc(formatTime(f.kickoff)):esc(f.status)}</small></div><div class="away">${clubBadge(f.away_name,'fixture-badge')}${esc(f.away_name)}</div></div>`;}
-function pickSummary(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">TVOJ PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge(p):''}</div><div class="selected-points">${p.points??'-'}<small>BODOVA</small></div></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}</div>`;}
-function savedOpenPick(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">SPREMLJENI PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge({...p,settled:false}):''}</div><span class="pill green">SPREMLJENO</span></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}<button type="button" class="primary full" data-action="change-pick">PROMIJENI PICK</button></div>`;}
+function pickedMatchVisual(p,fx){
+ if(!fx)return '<p class="fine">Podaci o utakmici još nisu dostupni.</p>';
+ const team=(name,id)=>`<div class="pick-match-club ${String(id)===String(p.team_id)?'is-picked':''}" title="${attr(name)}" aria-label="${attr(name)}${String(id)===String(p.team_id)?' - tvoj odabir':''}">${clubBadge(name,'pick-match-crest')||'<span class="pick-match-fallback">'+esc(name.slice(0,3).toUpperCase())+'</span>'}${String(id)===String(p.team_id)?'<span class="pick-match-chosen">✓</span>':''}</div>`;
+ const date=fx.kickoff?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',day:'numeric',month:'short'}).format(new Date(Number(fx.kickoff)*1000)):'Termin nije poznat';
+ const time=fx.kickoff?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(Number(fx.kickoff)*1000)):'–';
+ const finished=fx.home_score!==null&&fx.home_score!==undefined&&fx.away_score!==null&&fx.away_score!==undefined;
+ return `<div class="pick-match-visual" aria-label="Utakmica ${attr(fx.home_name)} protiv ${attr(fx.away_name)}">
+ <div class="pick-match-date">${esc(date)}</div>
+ <div class="pick-match-row">${team(fx.home_name,fx.home_id)}<div class="pick-match-center"><span class="pick-match-time">${finished?esc(score(fx)):esc(time)}</span><span class="pick-match-vs">${finished?'REZULTAT':'POČETAK'} · Zagreb</span></div>${team(fx.away_name,fx.away_id)}</div>
+ <div class="pick-match-caption"><span class="pick-match-dot"></span>Označeni grb je tvoj odabir</div>
+ </div>`;
+}
+function pickSummary(p,d){
+ if(!p)return '';
+ const fx=d.fixtures.find(f=>String(f.home_id)===String(p.team_id)||String(f.away_id)===String(p.team_id));
+ return `<div class="selected-summary"><div class="pick-status-row"><span class="pick-status-label">Tvoj odabir</span><div class="pick-status-right">${p.is_double?doubleBadge(p):''}<span class="pick-earned-points">${p.points??'–'} <small>bodova</small></span></div></div>${pickedMatchVisual(p,fx)}</div>`;
+}
+function savedOpenPick(p,d){
+ if(!p)return '';
+ const fx=d.fixtures.find(f=>String(f.home_id)===String(p.team_id)||String(f.away_id)===String(p.team_id));
+ return `<div class="selected-summary"><div class="pick-status-row"><span class="pick-status-label"><span class="pick-saved-indicator"></span> Spremljeno</span>${p.is_double?doubleBadge({...p,settled:false}):''}</div>${pickedMatchVisual(p,fx)}<button type="button" class="secondary full pick-change-button" data-action="change-pick">PROMIJENI PICK</button></div>`;
+}
 function roundPickStats(d){
  if(!d?.round?.revealed)return [];
  const counts=new Map();
@@ -294,11 +314,9 @@ function opposingPickPlayerIds(d){
 function mobileRoundDashboard(d){
  if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return '';
  const me=state.dashboard,points=me?Number(me.points||0):null,place=me?.place??null;
- const pick=d.myPick,pickName=pick?.team_name||'Nije odabrano';
  return `<section class="mobile-dashboard" aria-label="Moji podaci aktualnog kruga"><div class="dashboard-tiles">
  <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
  <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
- <div class="dashboard-tile dashboard-pick-tile ${pick?'':'dashboard-needs-pick'}"><span class="dashboard-label">Moj odabir</span><strong class="dashboard-value dashboard-pick">${pick?clubBadge(pickName,'sm')+esc(pickName):'Nije odabrano'}${pick?.is_double?' <span class="dashboard-double">×2</span>':''}</strong><span class="dashboard-caption">${pick?'Odabir je spremljen':d.round.locked?'Rok je istekao':'Odaberi ekipu ispod'}</span></div>
  </div></section>`;
 }
 function renderRound(d){
