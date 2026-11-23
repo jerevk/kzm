@@ -162,7 +162,7 @@ async function load(view=state.view,silent=false,historyMode='push'){
  try{let data;
   if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
-  if(view==='round'){const [round,table]=await Promise.all([api('/round/'+state.round),api('/results?scope=all').catch(()=>null)]);if(seq!==state.sequence)return;data=round;state.dashboard=table?.rows?.find(x=>x.id===state.boot.user.id)||null;state.roundData=data;rememberRoundClock(data);renderRound(data);}
+  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.dashboard=data.overview||null;state.roundData=data;rememberRoundClock(data);renderRound(data);}
   if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence)return;renderResults(data);}
   if(view==='mine'){data=await api('/mine');if(seq!==state.sequence)return;renderMine(data);}
   if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence)return;renderStats(data);}
