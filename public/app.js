@@ -345,7 +345,7 @@ function renderRound(d){
  right+=`<div class="card"><div class="card-head"><h2>Nisu birali</h2><span class="pill pink">${notPicked.length}</span></div><div class="not-picked">${notPicked.map(x=>`<span>${esc(x.name)}</span>`).join('')||'<div class="green">Svi su odabrali ✓</div>'}</div></div>`;
  right+=renderRoundPickStats(d);
 
- $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+mobileRoundDashboard(d)+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
+ $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div>${mobileRoundDashboard(d)}<div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
  startRoundCountdown(d);
  if(roundComplete(d))setTimeout(()=>showRoundWinnerPopup(d),80);
 }
