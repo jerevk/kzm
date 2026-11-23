@@ -488,3 +488,6 @@ tr.opposing-pick td:first-child strong{color:#a31332}
  .dashboard-value{font-size:25px;line-height:1.1}
  .dashboard-caption{font-size:10px;line-height:1.25}
 }
+
+/* Bottom navigation already has Kolo: hide redundant top home control on mobile. */
+@media(max-width:720px){.topbar [data-action="home"]{display:none}}
