@@ -347,16 +347,16 @@ export async function syncFootball(env,manual=false){
   // Measure both providers for every active fixture. Only ESPN results have first priority in D1.
   // The comparison records each provider's first observation of the same score.
   let espnRows=[],espnApplied=new Set(),rezultatiRows=[],rezultatiApplied=new Set(),espnError='',rezultatiError='';
-  const [espnResponse,rezultatiResponse]=await Promise.allSettled([fetchEspn(now),fetchRezultati()]);
+  const [espnResponse,rezultatiResponse]=await Promise.allSettled([fetchEspn(now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)})),fetchRezultati().then(data=>({data,observedAt:Math.floor(Date.now()/1000)}))]);
   if(espnResponse.status==='fulfilled'){
-   espnRows=espnRaceRows(espnResponse.value,active,Math.floor(Date.now()/1000));
+   espnRows=espnRaceRows(espnResponse.value.data,active,espnResponse.value.observedAt);
    await recordRaceRows(env,espnRows);
    espnApplied=await applyLiveRows(env,s,espnRows,'ESPN');
    if(!espnRows.length)espnError='ESPN nije povezao aktivnu utakmicu.';
   }else espnError=String(espnResponse.reason?.message||espnResponse.reason).slice(0,300);
   await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnError).run();
   if(rezultatiResponse.status==='fulfilled'){
-   rezultatiRows=parseRezultatiLive(rezultatiResponse.value,active,Math.floor(Date.now()/1000));
+   rezultatiRows=parseRezultatiLive(rezultatiResponse.value.data,active,rezultatiResponse.value.observedAt);
    await recordRaceRows(env,rezultatiRows);
    const remaining=rezultatiRows.filter(row=>!espnApplied.has(String(row.fixture_id)));
    rezultatiApplied=await applyLiveRows(env,s,remaining,'Rezultati.com');
