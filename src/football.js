@@ -103,8 +103,8 @@ function espnStatus(c){
  if(name.includes('POSTPON'))return 'POSTPONED';
  if(name.includes('CANCEL'))return 'CANCELLED';
  if(name.includes('SUSPEND'))return 'SUSPENDED';
- if(name.includes('HALF')||name.includes('BREAK')||name.includes('PAUSE'))return 'PAUSED';
- if(state==='in'||name.includes('IN_PROGRESS'))return 'IN_PLAY';
+ if(name.includes('HALFTIME')||name.includes('HALF_TIME')||name.includes('BREAK')||name.includes('PAUSE'))return 'PAUSED';
+ if(state==='in'||name.includes('IN_PROGRESS')||name.includes('FIRST_HALF')||name.includes('SECOND_HALF'))return 'IN_PLAY';
  return 'SCHEDULED';
 }
 
