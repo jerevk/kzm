@@ -1,0 +1,641 @@
+{
+  "season": 2025,
+  "sourceNote": "Arhiva 2025/26 prepisana iz 4 dostavljene slike; Šizo = Sebastijan Pšihistal; prekrojeni poretci po bodovima; Nekad Robi bez potvrđenog identiteta",
+  "scopes": {
+    "1": [
+      {
+        "place": 1,
+        "name": "Hrvoje Popović",
+        "points": 42
+      },
+      {
+        "place": 2,
+        "name": "Filip Previšić Žoger",
+        "points": 41
+      },
+      {
+        "place": 3,
+        "name": "Domagoj Popović",
+        "points": 37
+      },
+      {
+        "place": 4,
+        "name": "Toni Omrčen",
+        "points": 35
+      },
+      {
+        "place": 5,
+        "name": "Dino Jerkić",
+        "points": 33
+      },
+      {
+        "place": 5,
+        "name": "Filip Šarić",
+        "points": 33
+      },
+      {
+        "place": 7,
+        "name": "Josip Bertić",
+        "points": 32
+      },
+      {
+        "place": 8,
+        "name": "Filip Vištica",
+        "points": 31
+      },
+      {
+        "place": 9,
+        "name": "Damir Bošnjak Cigo",
+        "points": 30
+      },
+      {
+        "place": 9,
+        "name": "Kristijan Šostar",
+        "points": 30
+      },
+      {
+        "place": 11,
+        "name": "Marin Nikić",
+        "points": 25
+      },
+      {
+        "place": 12,
+        "name": "Domagoj Murvaj",
+        "points": 24
+      },
+      {
+        "place": 12,
+        "name": "Marin Marin",
+        "points": 24
+      },
+      {
+        "place": 14,
+        "name": "Sebastijan Pšihistal",
+        "points": 23
+      },
+      {
+        "place": 15,
+        "name": "Robert Šimunović",
+        "points": 22
+      },
+      {
+        "place": 16,
+        "name": "Martin Papac",
+        "points": 21
+      },
+      {
+        "place": 16,
+        "name": "Matej Bertić",
+        "points": 21
+      },
+      {
+        "place": 18,
+        "name": "Domagoj Perković",
+        "points": 18
+      },
+      {
+        "place": 19,
+        "name": "Josip Knežević",
+        "points": 15
+      },
+      {
+        "place": 20,
+        "name": "Anton Mioč",
+        "points": 8
+      }
+    ],
+    "2": [
+      {
+        "place": 1,
+        "name": "Josip Knežević",
+        "points": 40
+      },
+      {
+        "place": 1,
+        "name": "Luka Elez",
+        "points": 40
+      },
+      {
+        "place": 3,
+        "name": "Ante Siladi",
+        "points": 38
+      },
+      {
+        "place": 4,
+        "name": "Marin Nikić",
+        "points": 34
+      },
+      {
+        "place": 5,
+        "name": "Bruno Čavarović",
+        "points": 33
+      },
+      {
+        "place": 6,
+        "name": "Antonio Stojanović",
+        "points": 28
+      },
+      {
+        "place": 6,
+        "name": "Dino Jerkić",
+        "points": 28
+      },
+      {
+        "place": 8,
+        "name": "Anton Mioč",
+        "points": 27
+      },
+      {
+        "place": 8,
+        "name": "Marin Marin",
+        "points": 27
+      },
+      {
+        "place": 10,
+        "name": "Josip Bertić",
+        "points": 26
+      },
+      {
+        "place": 11,
+        "name": "Domagoj Popović",
+        "points": 25
+      },
+      {
+        "place": 12,
+        "name": "Filip Šarić",
+        "points": 24
+      },
+      {
+        "place": 12,
+        "name": "Hrvoje Popović",
+        "points": 24
+      },
+      {
+        "place": 14,
+        "name": "Domagoj Perković",
+        "points": 23
+      },
+      {
+        "place": 14,
+        "name": "Martin Papac",
+        "points": 23
+      },
+      {
+        "place": 16,
+        "name": "Vlado Habjanec",
+        "points": 22
+      },
+      {
+        "place": 17,
+        "name": "Domagoj Murvaj",
+        "points": 21
+      },
+      {
+        "place": 17,
+        "name": "Robert Šimunović",
+        "points": 21
+      },
+      {
+        "place": 19,
+        "name": "Bruno Svirac",
+        "points": 20
+      },
+      {
+        "place": 19,
+        "name": "Kristijan Šostar",
+        "points": 20
+      },
+      {
+        "place": 21,
+        "name": "Filip Vištica",
+        "points": 19
+      },
+      {
+        "place": 22,
+        "name": "Damir Bošnjak Cigo",
+        "points": 16
+      },
+      {
+        "place": 22,
+        "name": "Sebastijan Pšihistal",
+        "points": 16
+      },
+      {
+        "place": 24,
+        "name": "Filip Previšić Žoger",
+        "points": 15
+      },
+      {
+        "place": 25,
+        "name": "Goran Rajković",
+        "points": 13
+      },
+      {
+        "place": 26,
+        "name": "Marko Jozinović",
+        "points": 12
+      }
+    ],
+    "3": [
+      {
+        "place": 1,
+        "name": "Bruno Svirac",
+        "points": 30
+      },
+      {
+        "place": 1,
+        "name": "Filip Vištica",
+        "points": 30
+      },
+      {
+        "place": 3,
+        "name": "Domagoj Murvaj",
+        "points": 28
+      },
+      {
+        "place": 4,
+        "name": "Domagoj Perković",
+        "points": 26
+      },
+      {
+        "place": 5,
+        "name": "Luka Elez",
+        "points": 23
+      },
+      {
+        "place": 6,
+        "name": "Antonio Stojanović",
+        "points": 22
+      },
+      {
+        "place": 6,
+        "name": "Hrvoje Popović",
+        "points": 22
+      },
+      {
+        "place": 8,
+        "name": "Goran Rajković",
+        "points": 20
+      },
+      {
+        "place": 8,
+        "name": "Josip Bertić",
+        "points": 20
+      },
+      {
+        "place": 10,
+        "name": "Filip Šarić",
+        "points": 19
+      },
+      {
+        "place": 10,
+        "name": "Josip Knežević",
+        "points": 19
+      },
+      {
+        "place": 12,
+        "name": "Domagoj Popović",
+        "points": 18
+      },
+      {
+        "place": 13,
+        "name": "Bruno Čavarović",
+        "points": 17
+      },
+      {
+        "place": 13,
+        "name": "Kristijan Šostar",
+        "points": 17
+      },
+      {
+        "place": 15,
+        "name": "Marko Jozinović",
+        "points": 16
+      },
+      {
+        "place": 16,
+        "name": "Martin Papac",
+        "points": 13
+      },
+      {
+        "place": 16,
+        "name": "Sebastijan Pšihistal",
+        "points": 13
+      },
+      {
+        "place": 16,
+        "name": "Vlado Habjanec",
+        "points": 13
+      },
+      {
+        "place": 19,
+        "name": "Marin Nikić",
+        "points": 11
+      },
+      {
+        "place": 20,
+        "name": "Marin Marin",
+        "points": 10
+      },
+      {
+        "place": 21,
+        "name": "Dino Jerkić",
+        "points": 9
+      },
+      {
+        "place": 22,
+        "name": "Anton Mioč",
+        "points": 4
+      },
+      {
+        "place": 23,
+        "name": "Filip Previšić Žoger",
+        "points": 3
+      },
+      {
+        "place": 24,
+        "name": "Ante Siladi",
+        "points": 1
+      },
+      {
+        "place": 25,
+        "name": "Damir Bošnjak Cigo",
+        "points": 0
+      },
+      {
+        "place": 25,
+        "name": "Nekad Robi",
+        "points": 0
+      }
+    ],
+    "4": [
+      {
+        "place": 1,
+        "name": "Josip Knežević",
+        "points": 36
+      },
+      {
+        "place": 2,
+        "name": "Josip Bertić",
+        "points": 34
+      },
+      {
+        "place": 3,
+        "name": "Luka Elez",
+        "points": 30
+      },
+      {
+        "place": 4,
+        "name": "Goran Rajković",
+        "points": 29
+      },
+      {
+        "place": 5,
+        "name": "Hrvoje Popović",
+        "points": 28
+      },
+      {
+        "place": 6,
+        "name": "Antonio Stojanović",
+        "points": 23
+      },
+      {
+        "place": 7,
+        "name": "Domagoj Popović",
+        "points": 21
+      },
+      {
+        "place": 7,
+        "name": "Filip Previšić Žoger",
+        "points": 21
+      },
+      {
+        "place": 9,
+        "name": "Filip Vištica",
+        "points": 20
+      },
+      {
+        "place": 9,
+        "name": "Robert Šimunović",
+        "points": 20
+      },
+      {
+        "place": 11,
+        "name": "Damir Bošnjak Cigo",
+        "points": 19
+      },
+      {
+        "place": 12,
+        "name": "Kristijan Šostar",
+        "points": 18
+      },
+      {
+        "place": 12,
+        "name": "Sebastijan Pšihistal",
+        "points": 18
+      },
+      {
+        "place": 12,
+        "name": "Vlado Habjanec",
+        "points": 18
+      },
+      {
+        "place": 15,
+        "name": "Domagoj Perković",
+        "points": 17
+      },
+      {
+        "place": 16,
+        "name": "Marin Marin",
+        "points": 16
+      },
+      {
+        "place": 17,
+        "name": "Lovro Pedić",
+        "points": 15
+      },
+      {
+        "place": 18,
+        "name": "Marko Jozinović",
+        "points": 13
+      },
+      {
+        "place": 19,
+        "name": "Dino Jerkić",
+        "points": 12
+      },
+      {
+        "place": 19,
+        "name": "Mirko Vujeva",
+        "points": 12
+      },
+      {
+        "place": 21,
+        "name": "Domagoj Murvaj",
+        "points": 11
+      },
+      {
+        "place": 22,
+        "name": "Bruno Svirac",
+        "points": 8
+      }
+    ],
+    "all": [
+      {
+        "place": 1,
+        "name": "Hrvoje Popović",
+        "points": 116
+      },
+      {
+        "place": 2,
+        "name": "Josip Bertić",
+        "points": 112
+      },
+      {
+        "place": 3,
+        "name": "Josip Knežević",
+        "points": 110
+      },
+      {
+        "place": 4,
+        "name": "Domagoj Popović",
+        "points": 101
+      },
+      {
+        "place": 5,
+        "name": "Filip Vištica",
+        "points": 100
+      },
+      {
+        "place": 6,
+        "name": "Luka Elez",
+        "points": 93
+      },
+      {
+        "place": 7,
+        "name": "Kristijan Šostar",
+        "points": 85
+      },
+      {
+        "place": 8,
+        "name": "Domagoj Murvaj",
+        "points": 84
+      },
+      {
+        "place": 8,
+        "name": "Domagoj Perković",
+        "points": 84
+      },
+      {
+        "place": 10,
+        "name": "Dino Jerkić",
+        "points": 82
+      },
+      {
+        "place": 11,
+        "name": "Filip Previšić Žoger",
+        "points": 80
+      },
+      {
+        "place": 12,
+        "name": "Marin Marin",
+        "points": 77
+      },
+      {
+        "place": 13,
+        "name": "Filip Šarić",
+        "points": 76
+      },
+      {
+        "place": 14,
+        "name": "Antonio Stojanović",
+        "points": 73
+      },
+      {
+        "place": 15,
+        "name": "Marin Nikić",
+        "points": 70
+      },
+      {
+        "place": 15,
+        "name": "Sebastijan Pšihistal",
+        "points": 70
+      },
+      {
+        "place": 17,
+        "name": "Damir Bošnjak Cigo",
+        "points": 65
+      },
+      {
+        "place": 18,
+        "name": "Robert Šimunović",
+        "points": 63
+      },
+      {
+        "place": 19,
+        "name": "Goran Rajković",
+        "points": 62
+      },
+      {
+        "place": 20,
+        "name": "Bruno Svirac",
+        "points": 58
+      },
+      {
+        "place": 21,
+        "name": "Martin Papac",
+        "points": 57
+      },
+      {
+        "place": 22,
+        "name": "Vlado Habjanec",
+        "points": 53
+      },
+      {
+        "place": 23,
+        "name": "Bruno Čavarović",
+        "points": 50
+      },
+      {
+        "place": 24,
+        "name": "Marko Jozinović",
+        "points": 41
+      },
+      {
+        "place": 25,
+        "name": "Ante Siladi",
+        "points": 39
+      },
+      {
+        "place": 25,
+        "name": "Anton Mioč",
+        "points": 39
+      },
+      {
+        "place": 27,
+        "name": "Toni Omrčen",
+        "points": 35
+      },
+      {
+        "place": 28,
+        "name": "Matej Bertić",
+        "points": 21
+      },
+      {
+        "place": 29,
+        "name": "Lovro Pedić",
+        "points": 15
+      },
+      {
+        "place": 30,
+        "name": "Mirko Vujeva",
+        "points": 12
+      },
+      {
+        "place": 31,
+        "name": "Nekad Robi",
+        "points": 0
+      }
+    ]
+  }
+}
