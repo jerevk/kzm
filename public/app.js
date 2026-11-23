@@ -446,24 +446,32 @@ function syncAdminPickEditor(){
 }
 function raceClock(s){return s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(Number(s)*1000)):'-';}
 function sourceRaceHtml(d){
- const rows=d.sourceRace||[];
- if(!rows.length)return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>Utrka izvora</h2><span class="pill">TEST</span></div><p class="fine">ESPN je primarni live fallback dok utakmica traje, a football-data.org ostaje fallback i izvor punog rasporeda. Bilježenje počinje automatski kad utakmica krene.</p><div class="empty">Još nema zabilježenih live promjena.</div></div>`;
+ const rows=(d.sourceRace||[]).filter(r=>r.source==='ESPN'||r.source==='Rezultati.com');
  const groups=new Map();
  for(const r of rows){
   if(r.home_score===null||r.away_score===null)continue;
+  const t=Number(r.observed_at)||0;
   const key=`${r.fixture_id}|${r.home_score}:${r.away_score}`;
-  let g=groups.get(key);if(!g){g={fixture_id:r.fixture_id,home_name:r.home_name,away_name:r.away_name,score:`${r.home_score}:${r.away_score}`,sources:{},first:Number(r.observed_at)||0};groups.set(key,g);}
-  const t=Number(r.observed_at)||0;g.first=Math.min(g.first||t,t);
+  let g=groups.get(key);
+  if(!g){g={fixture_id:r.fixture_id,home_name:r.home_name,away_name:r.away_name,score:`${r.home_score}:${r.away_score}`,sources:{},first:t};groups.set(key,g);}
+  g.first=Math.min(g.first,t);
   if(!g.sources[r.source]||t<g.sources[r.source])g.sources[r.source]=t;
  }
- const list=[...groups.values()].sort((a,b)=>b.first-a.first).slice(0,24);
+ const list=[...groups.values()].sort((a,b)=>b.first-a.first).slice(0,30);
+ let espnWins=0,rezultatiWins=0,ties=0;
  const body=list.map(g=>{
-  const e=g.sources.ESPN||null,f=g.sources['football-data.org']||null;
+  const e=g.sources.ESPN||null,r=g.sources['Rezultati.com']||null;
   let verdict='Čeka drugi izvor';
-  if(e&&f){const delta=f-e;verdict=delta===0?'Isti ciklus':delta>0?`ESPN ranije ${delta} s`:`football-data.org ranije ${Math.abs(delta)} s`;}
-  return `<tr><td><strong>${esc(g.home_name)} - ${esc(g.away_name)}</strong></td><td><strong>${esc(g.score)}</strong></td><td>${raceClock(e)}</td><td>${raceClock(f)}</td><td>${esc(verdict)}</td></tr>`;
+  if(e&&r){const delta=r-e;if(delta===0){ties++;verdict='Isti trenutak';}else if(delta>0){espnWins++;verdict=`ESPN ranije ${delta} s`;}else{rezultatiWins++;verdict=`Rezultati.com ranije ${Math.abs(delta)} s`;}}
+  return `<tr><td><strong>${esc(g.home_name)} – ${esc(g.away_name)}</strong></td><td><strong>${esc(g.score)}</strong></td><td>${raceClock(e)}</td><td>${raceClock(r)}</td><td>${esc(verdict)}</td></tr>`;
  }).join('');
- return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>Utrka izvora</h2><span class="pill ${Number(d.sourceRaceActive||0)>0?'green':''}">${Number(d.sourceRaceActive||0)>0?'LIVE TEST':'ČEKA UTAKMICU'}</span></div><p class="fine"><strong>ESPN sada može ažurirati live rezultat u D1.</strong> football-data.org se koristi kao fallback i za puni raspored. Tablica i dalje pokazuje kada je koji izvor prijavio promjenu. Pregled se osvježava svakih 15 sekundi dok nije otvoren obrazac za uređivanje.</p>${d.sourceRaceEspnError?`<div class="error">ESPN: ${esc(d.sourceRaceEspnError)}</div>`:''}${d.sourceRaceFootballError?`<div class="error">football-data.org: ${esc(d.sourceRaceFootballError)}</div>`:''}<div class="table-wrap"><table><thead><tr><th>Utakmica</th><th>Rezultat</th><th>ESPN</th><th>football-data.org</th><th>Brži izvor</th></tr></thead><tbody>${body||'<tr><td colspan="5">Čekam prvu promjenu rezultata.</td></tr>'}</tbody></table></div></div>`;
+ const status=Number(d.sourceRaceActive||0)>0?'LIVE PRAĆENJE':'ČEKA UTAKMICU';
+ return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>ESPN vs. Rezultati.com</h2><span class="pill ${Number(d.sourceRaceActive||0)>0?'green':''}">${status}</span></div>
+ <p class="fine">Oba izvora provjeravaju se tijekom utakmice. Prikazano vrijeme je trenutak kada je KZM prvi put zaprimio pojedini rezultat, a ne službeno vrijeme gola. ESPN ima prednost pri upisu u aplikaciju; Rezultati.com je rezervni izvor. Jednakost znači isti zabilježeni sekund.</p>
+ <div class="source-race-totals"><span><strong>ESPN prvi: ${espnWins}</strong></span><span><strong>Rezultati.com prvi: ${rezultatiWins}</strong></span><span>Istodobno: ${ties}</span></div>
+ ${d.sourceRaceEspnError?`<div class="error">ESPN: ${esc(d.sourceRaceEspnError)}</div>`:''}
+ ${d.sourceRaceRezultatiError?`<div class="error">Rezultati.com: ${esc(d.sourceRaceRezultatiError)}</div>`:''}
+ <div class="table-wrap"><table><thead><tr><th>Utakmica</th><th>Rezultat</th><th>ESPN</th><th>Rezultati.com</th><th>Tko je prvi?</th></tr></thead><tbody>${body||'<tr><td colspan="5">Još nema usporedivih promjena rezultata. Podaci će se pojaviti tijekom utakmica.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function registrationCycleText(c){return c?`${Number(c)}. krug`:'sljedeća sezona';}
@@ -550,7 +558,7 @@ function renderAdmin(){
  `<div class="card" data-admin-panel="players-payments"><div class="card-head"><h2>Igrači i plaćanja</h2><button data-action="refresh" class="small-btn">OSVJEZI</button></div><div class="admin-table-wrap"><table><thead><tr><th>Igrac</th>${[1,2,3,4].map(c=>`<th>Krug ${c}</th>`).join('')}<th>Akcije</th></tr></thead><tbody>${playerRows}</tbody></table></div></div>`+
  pushDiagnosticsHtml()+
  sourceRaceHtml(d)+
- `<div class="card" data-admin-panel="past-results"><h2>Ispravljanje starih rezultata</h2><p class="fine">Otvori uredivanje utakmica i odaberi bilo koje od 38 kola, ukljucujuci zavrsena.</p><button class="primary" data-view="system">UREDI REZULTATE SVIH KOLA</button></div>\n <div class="card" data-admin-panel="system-actions"><div class="card-head"><h2>Sustav i raspored</h2><span class="pill">D1</span></div><div class="actions"><button class="secondary" data-view="system">KLUBOVI, ROKOVI I REZULTATI</button><button data-action="toggle-picks" class="${d.settings.picks_enabled==='1'?'danger':'primary'}">${d.settings.picks_enabled==='1'?'ZAUSTAVI ODABIRE':'OMOGUCI ODABIRE'}</button><button data-action="sync">RUČNO OSVJEŽI CIJELI RASPORED</button><button data-action="espn-test" class="secondary">TEST ESPN</button><button data-action="push-test" class="secondary">TEST PUSH</button></div><p class="fine"><strong>Auto live:</strong> svake minute i dodatno preko browser live-pulsea. ESPN radi neovisno o football-data rate limitu; football-data.org ostaje fallback i puni raspored.<br>Zadnji live dohvat: ${formatTime(Number(d.settings.last_sync)||null)}${d.settings.last_sync_source?` · izvor: <strong>${esc(d.settings.last_sync_source)}</strong>`:''}</p>${d.settings.last_sync_error?`<div class="error">${esc(d.settings.last_sync_error)}</div>`:''}<details><summary>Zapis zadnjih promjena</summary><div class="table-wrap"><table>${d.audit.map(a=>`<tr><td>${formatTime(a.created_at)}</td><td>${esc(a.actor||'Sustav')}</td><td>${esc(a.action)}</td></tr>`).join('')}</table></div></details></div>`;
+ `<div class="card" data-admin-panel="past-results"><h2>Ispravljanje starih rezultata</h2><p class="fine">Otvori uredivanje utakmica i odaberi bilo koje od 38 kola, ukljucujuci zavrsena.</p><button class="primary" data-view="system">UREDI REZULTATE SVIH KOLA</button></div>\n <div class="card" data-admin-panel="system-actions"><div class="card-head"><h2>Sustav i raspored</h2><span class="pill">D1</span></div><div class="actions"><button class="secondary" data-view="system">KLUBOVI, ROKOVI I REZULTATI</button><button data-action="toggle-picks" class="${d.settings.picks_enabled==='1'?'danger':'primary'}">${d.settings.picks_enabled==='1'?'ZAUSTAVI ODABIRE':'OMOGUCI ODABIRE'}</button><button data-action="sync">RUČNO OSVJEŽI CIJELI RASPORED</button><button data-action="espn-test" class="secondary">TEST ESPN</button><button data-action="push-test" class="secondary">TEST PUSH</button></div><p class="fine"><strong>Auto live:</strong> svake minute i dodatno preko browser live-pulsea. ESPN i Rezultati.com uspoređuju se tijekom utakmica; football-data.org provjerava raspored jednom tjedno.<br>Zadnji live dohvat: ${formatTime(Number(d.settings.last_sync)||null)}${d.settings.last_sync_source?` · izvor: <strong>${esc(d.settings.last_sync_source)}</strong>`:''}</p>${d.settings.last_sync_error?`<div class="error">${esc(d.settings.last_sync_error)}</div>`:''}<details><summary>Zapis zadnjih promjena</summary><div class="table-wrap"><table>${d.audit.map(a=>`<tr><td>${formatTime(a.created_at)}</td><td>${esc(a.actor||'Sustav')}</td><td>${esc(a.action)}</td></tr>`).join('')}</table></div></details></div>`;
  collapseAdminPanels('admin');syncAdminPickEditor();
 }
 
