@@ -1,89 +1,18 @@
-name: KZM encrypted daily D1 backup
+name: KZM backups moved to private repository
 
 on:
-  schedule:
-    - cron: '15 3 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: kzm-d1-backup
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
-  backup:
-    name: Export, encrypt and retain backup
+  backup-location:
+    name: Private backup location
     runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 15
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: b055478d1b312f96b178fb0d7b1c9fb6
-      BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install pinned dependencies
-        run: npm ci
-      - name: Require Cloudflare credentials and backup passphrase
+      - name: Show the private backup workflow
         shell: bash
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
-          test -n "$BACKUP_ENCRYPTION_PASSWORD" || { echo "Missing BACKUP_ENCRYPTION_PASSWORD"; exit 1; }
-      - name: Export remote production D1
-        shell: bash
-        run: |
-          mkdir -p backup
-          npx wrangler d1 export kzm-novi-d9ad28-db --remote --config wrangler.json --output backup/kzm.sql --skip-confirmation
-          test -s backup/kzm.sql
-          grep -q 'CREATE TABLE' backup/kzm.sql
-      - name: Encrypt and verify
-        shell: bash
-        run: |
-          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in backup/kzm.sql -out backup/kzm.sql.enc -pass env:BACKUP_ENCRYPTION_PASSWORD
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup/kzm.sql.enc -pass env:BACKUP_ENCRYPTION_PASSWORD | cmp - backup/kzm.sql
-          sha256sum backup/kzm.sql.enc > backup/SHA256SUMS.txt
-          rm -f backup/kzm.sql
-      - name: Keep encrypted backup outside Cloudflare
-        uses: actions/upload-artifact@v4
-        with:
-          name: kzm-d1-encrypted-${{ github.run_id }}
-          path: |
-            backup/kzm.sql.enc
-            backup/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-      - name: Email encrypted backup to owner
-        env:
-          BACKUP_EMAIL_APP_PASSWORD: ${{ secrets.BACKUP_EMAIL_APP_PASSWORD }}
-          BACKUP_EMAIL_TO: djerkic10@gmail.com
-        shell: bash
-        run: |
-          test -n "$BACKUP_EMAIL_APP_PASSWORD" || { echo "Missing BACKUP_EMAIL_APP_PASSWORD GitHub secret"; exit 1; }
-          python3 - <<'PY'
-          import os, smtplib, ssl
-          from pathlib import Path
-          from email.message import EmailMessage
-          from datetime import datetime, timezone
-          file = Path('backup/kzm.sql.enc')
-          if file.stat().st_size > 18 * 1024 * 1024:
-              raise SystemExit('Encrypted backup exceeds safe Gmail attachment size. Backup remains in GitHub Actions artifact.')
-          msg = EmailMessage()
-          sender = 'djerkic10@gmail.com'
-          msg['From'] = sender
-          msg['To'] = os.environ['BACKUP_EMAIL_TO']
-          msg['Subject'] = 'KZM sigurnosna kopija - ' + datetime.now(timezone.utc).strftime('%Y-%m-%d')
-          msg.set_content('U prilogu je sifrirana sigurnosna kopija KZM baze. Lozinka za desifriranje nije poslana e-mailom. GitHub Actions cuva i rezervnu kopiju 30 dana.')
-          msg.add_attachment(file.read_bytes(), maintype='application', subtype='octet-stream', filename='kzm.sql.enc')
-          checksum = Path('backup/SHA256SUMS.txt')
-          msg.add_attachment(checksum.read_bytes(), maintype='text', subtype='plain', filename='SHA256SUMS.txt')
-          with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context(), timeout=30) as smtp:
-              smtp.login(sender, os.environ['BACKUP_EMAIL_APP_PASSWORD'])
-              smtp.send_message(msg)
-          PY
+          echo 'Daily encrypted backups run in the private repository:'
+          echo 'https://github.com/jerevk/kzm-backups/actions/workflows/backup-d1.yml'
+          echo 'Open that workflow to run or download a backup.'
