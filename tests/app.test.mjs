@@ -523,6 +523,16 @@ check('Rezultati.com parser reads only matched Premier League live scores',()=>{
  assert.equal(rows[0].away_score,1);
  assert.equal(rows[0].live_minute,67);
 });
+check('Rezultati.com parser recognizes live scores when the site inserts a card icon',()=>{
+ const html='<div id="score-data"><h4>ENGLESKA: Premier League <a href="/tablica/x">Tablica</a></h4>'
+  +'<span class="live">60&#39;</span>Brentford - Everton<img src="/image/blank.gif" alt="" class="rcard-1"> <a href="/utakmica/CSnuq6U8/" class="live">2-0</a><br />'
+  +'<h4>HRVATSKA: SuperSport HNL</h4></div>';
+ const result=parseRezultatiLive(html,[{id:'f1',home_name:'Brentford',away_name:'Everton'}],1730000000);
+ assert.equal(result.length,1);
+ assert.equal(result[0].source,'Rezultati.com');
+ assert.deepEqual([result[0].home_score,result[0].away_score,result[0].live_minute],[2,0,60]);
+});
+
 check('Rezultati.com is recorded during a live match and takes over if ESPN has no result',async()=>{
  const x=await fresh(),previous=globalThis.fetch,urls=[];
  try{
