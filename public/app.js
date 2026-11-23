@@ -295,8 +295,8 @@ function mobileRoundDashboard(d){
  return `<section class="mobile-dashboard" aria-label="Moj pregled">
  <div class="dashboard-heading"><div><span class="dashboard-kicker">MOJ PREGLED</span><h2>Aktualno kolo <span>${Number(d.round.number)}</span></h2></div><span class="dashboard-cycle">${Number(d.round.cycle)}. krug</span></div>
  <div class="dashboard-tiles">
- <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">Ukupna tablica</span></div>
- <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">Cijela sezona</span></div>
+ <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
+ <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
  <div class="dashboard-tile ${pick?'':'dashboard-needs-pick'}"><span class="dashboard-label">Moj odabir</span><strong class="dashboard-value dashboard-pick">${pick?clubBadge(pickName,'sm')+esc(pickName):'Nije odabrano'}${pick?.is_double?' <span class="dashboard-double">×2</span>':''}</strong><span class="dashboard-caption">${pick?'Odabir je spremljen':d.round.locked?'Rok je istekao':'Odaberi ekipu ispod'}</span></div>
  <div class="dashboard-tile dashboard-clock-tile" data-urgency="${esc(clock.urgency)}"><span class="dashboard-label">Do zaključavanja</span><strong class="dashboard-value dashboard-time" id="dashboard-deadline">${esc(countdown)}</strong><span class="dashboard-caption">${esc(formatTime(d.round.deadline))}</span></div>
  </div></section>`;
