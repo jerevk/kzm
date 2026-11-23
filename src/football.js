@@ -221,9 +221,9 @@ export async function sourceRaceData(env){
  const active=(await env.DB.prepare(`SELECT COUNT(*) AS n FROM fixtures WHERE manual_score=0 AND kickoff IS NOT NULL AND kickoff<=? AND kickoff>=? AND NOT EXISTS(SELECT 1 FROM meta m WHERE m.key='live-terminal:'||fixtures.id)`).bind(now,now-LIVE_WINDOW_SECONDS).first())?.n||0;
  const errs=await env.DB.batch([
   env.DB.prepare("SELECT value FROM meta WHERE key='source_race_espn_error'"),
-  env.DB.prepare("SELECT value FROM meta WHERE key='source_race_football_error'")
+  env.DB.prepare("SELECT value FROM meta WHERE key='source_race_rezultati_error'")
  ]);
- return {rows,active:Number(active),espnError:errs[0].results?.[0]?.value||'',footballError:errs[1].results?.[0]?.value||''};
+ return {rows,active:Number(active),espnError:errs[0].results?.[0]?.value||'',rezultatiError:errs[1].results?.[0]?.value||''};
 }
 
 async function saveFootball(env,s,teams,matches,{manual=false}={}){
