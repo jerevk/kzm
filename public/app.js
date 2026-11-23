@@ -1,5 +1,6 @@
 import {createPushManager} from './js/push.js';
 import {createNavigation} from './js/navigation.js?v=20261123-back1';
+import {getSeasonClubRanking} from './js/season-rules.js?v=20261123-clubs1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
@@ -263,8 +264,8 @@ function renderRules(){
  const season=Number(state.boot.season),label=season+'/'+String((season+1)%100).padStart(2,'0');
  const previousSeason=season-1,previousLabel=previousSeason+'/'+String(season%100).padStart(2,'0');
  const cycleRanges=state.boot.cycles.map(c=>`${Number(c.id)}. krug: ${Number(c.from)}.–${Number(c.to)}. kolo`).join(' · ');
- const teams=[...(state.boot.teams||[])].sort((a,b)=>Number(a.base)-Number(b.base)||String(a.name).localeCompare(String(b.name),'hr'));
- const teamRows=teams.map(t=>`<tr><td><span class="club-inline">${clubBadge(t.name,'sm')}<strong>${esc(t.name)}</strong></span></td><td class="points right">${Number(t.base)}</td><td class="points right">${Number(t.base)+1}</td></tr>`).join('');
+ const ranking=getSeasonClubRanking(state.boot.teams||[],season),teams=ranking.rows;
+ const teamRows=teams.map((t,i)=>`<tr class="${[6,11,16].includes(t.previousPosition)||t.promoted&&!teams[i-1]?.promoted?'rules-band-start':''}"><td>${t.previousPosition?`<strong>${Number(t.previousPosition)}.</strong>`:t.promoted?'<span class="rules-newcomer">Novi prvoligaš</span>':'–'}</td><td><span class="club-inline">${clubBadge(t.name,'sm')}<strong>${esc(t.name)}</strong></span></td><td class="points right">${Number(t.base)}</td><td class="points right">${Number(t.base)+1}</td></tr>`).join('');
  $('#main').innerHTML=hero('Pravila i bodovanje','Pravila igre i bodovi ekipa za sezonu '+label,'',season)+`<div class="rules-content">
   <section class="card"><h2>Kako se igra</h2><ol class="rules-list">
    <li><strong>Sezona ima 38 kola i četiri kruga.</strong> ${esc(cycleRanges)}.</li>
@@ -279,7 +280,13 @@ function renderRules(){
    <tr><th scope="row">Remi</th><td>0</td><td>1</td></tr>
    <tr><th scope="row">Poraz</th><td>0</td><td>0</td></tr>
   </tbody></table></div><p>DOUBLE množi konačni rezultat bodovanja s 2. Primjer: ekipa koja vrijedi 5 bodova za pobjedu u gostima donosi 6 bodova, odnosno 12 uz DOUBLE.</p><p class="double-legend" aria-label="Značenje boja za DOUBLE"><span class="double-result double-hit">Pogođeni DOUBLE</span> <span class="double-result double-miss">Promašeni DOUBLE</span> <span class="double-result double-pending">Čeka ishod</span></p></section>
-  <section class="card"><h2>Bodovi ekipa · ${esc(label)}</h2><p>Ekipe su poredane od najmanje prema najviše osnovnih bodova. Tablica prikazuje bodove za pobjedu; remi u gostima donosi 1 bod. DOUBLE udvostručuje osvojene bodove.</p>${teams.length?`<div class="table-wrap"><table class="rules-table"><thead><tr><th scope="col">Ekipa</th><th scope="col" class="right">Pobjeda doma</th><th scope="col" class="right">Pobjeda u gostima</th></tr></thead><tbody>${teamRows}</tbody></table></div>`:empty('Bodovi ekipa trenutačno nisu dostupni.')}</section>
+  <section class="card"><h2>Poredak klubova i osnovni bodovi</h2><p>Osnovni bodovi za sezonu ${esc(label)} određuju se prema <strong>konačnom poretku Premier League iz sezone ${esc(previousLabel)}</strong>. Taj redoslijed ostaje isti tijekom cijele aktualne sezone.</p>
+   <div class="table-wrap"><table class="rules-table rules-points-bands"><thead><tr><th scope="col">Plasman prošle sezone</th><th scope="col" class="right">Osnovni bodovi</th></tr></thead><tbody><tr><td>1.–5. mjesto</td><td class="points right">3</td></tr><tr><td>6.–10. mjesto</td><td class="points right">4</td></tr><tr><td>11.–15. mjesto</td><td class="points right">5</td></tr><tr><td>16.–17. mjesto</td><td class="points right">6</td></tr><tr><td>Tri nova prvoligaša · underdogovi</td><td class="points right">7</td></tr></tbody></table></div>
+   <p>Novopridošli klubovi navedeni su na dnu. Osnovni bodovi vrijede za pobjedu kod kuće, a pobjeda u gostima donosi jedan bod više.</p>
+   ${ranking.sourceUrl?'':`<p class="fine">Povijesni poredak klubova za ${esc(previousLabel)} još nije unesen.</p>`}
+   ${teams.length?`<div class="table-wrap"><table class="rules-table rules-club-ranking"><thead><tr><th scope="col">Mjesto ${esc(previousLabel)}</th><th scope="col">Klub</th><th scope="col" class="right">Pobjeda doma</th><th scope="col" class="right">Pobjeda u gostima</th></tr></thead><tbody>${teamRows}</tbody></table></div>`:empty('Bodovi klubova trenutačno nisu dostupni.')}
+   ${ranking.sourceUrl?`<p class="fine rules-source">Izvori: <a href="${attr(ranking.sourceUrl)}" target="_blank" rel="noopener noreferrer">konačna tablica Premier League ${esc(previousLabel)}</a> · <a href="${attr(ranking.promotionSourceUrl)}" target="_blank" rel="noopener noreferrer">novi prvoligaši ${esc(label)}</a>.</p>`:''}
+  </section>
   <section class="card"><h2>Prošla sezona</h2><p>Pregledaj ukupni poredak igrača i osvojene bodove po krugovima.</p><div class="actions"><button type="button" class="secondary" data-view="archive">Poredak igrača ${esc(previousLabel)}</button><button type="button" class="small-btn" data-action="home">${Number(state.selectedSeason)!==season?'Vrati se u aktualnu sezonu':'Trenutno kolo'}</button></div></section>
  </div>`;
 }
