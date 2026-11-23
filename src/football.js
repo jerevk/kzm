@@ -176,7 +176,7 @@ export function parseRezultatiLive(html,active,observedAt){
  const next=page.indexOf('<h4',from);
  const section=page.slice(from,next<0?from+20000:Math.min(next,from+20000));
  const fixtures=new Map(active.map(f=>[teamKey(f.home_name)+'|'+teamKey(f.away_name),f]));
- const clean=value=>String(value||'').replace(/<[^>]*>/g,'').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
+ const clean=value=>String(value||'').replace(/<[^>]*>/g,'').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&#39;|&#x27;|&apos;/gi,"'").replace(/\s+/g,' ').trim();
  const output=[];
  for(const raw of section.split(/<br\s*\/?>/i)){
   const m=/<span\b([^>]*)>([\s\S]*?)<\/span>\s*([^<]+?)\s*<a\b[^>]*class=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(raw);
