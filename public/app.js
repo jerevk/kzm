@@ -294,15 +294,11 @@ function opposingPickPlayerIds(d){
 function mobileRoundDashboard(d){
  if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return '';
  const me=state.dashboard,points=me?Number(me.points||0):null,place=me?.place??null;
- const pick=d.myPick,pickName=pick?.team_name||'Nije odabrano',clock=getRoundCountdown(d.round.deadline,roundCountdownContext?.now?.()??Math.floor(Date.now()/1000));
- const countdown=clock.status==='open'?clock.label:clock.status==='unset'?'Nema roka':'Zaključano';
- return `<section class="mobile-dashboard" aria-label="Moj pregled">
- <div class="dashboard-heading"><div><span class="dashboard-kicker">MOJ PREGLED</span><h2>Aktualno kolo <span>${Number(d.round.number)}</span></h2></div><span class="dashboard-cycle">${Number(d.round.cycle)}. krug</span></div>
- <div class="dashboard-tiles">
+ const pick=d.myPick,pickName=pick?.team_name||'Nije odabrano';
+ return `<section class="mobile-dashboard" aria-label="Moji podaci aktualnog kruga"><div class="dashboard-tiles">
  <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
  <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
- <div class="dashboard-tile ${pick?'':'dashboard-needs-pick'}"><span class="dashboard-label">Moj odabir</span><strong class="dashboard-value dashboard-pick">${pick?clubBadge(pickName,'sm')+esc(pickName):'Nije odabrano'}${pick?.is_double?' <span class="dashboard-double">×2</span>':''}</strong><span class="dashboard-caption">${pick?'Odabir je spremljen':d.round.locked?'Rok je istekao':'Odaberi ekipu ispod'}</span></div>
- <div class="dashboard-tile dashboard-clock-tile" data-urgency="${esc(clock.urgency)}"><span class="dashboard-label">Do zaključavanja</span><strong class="dashboard-value dashboard-time" id="dashboard-deadline">${esc(countdown)}</strong><span class="dashboard-caption">${esc(formatTime(d.round.deadline))}</span></div>
+ <div class="dashboard-tile dashboard-pick-tile ${pick?'':'dashboard-needs-pick'}"><span class="dashboard-label">Moj odabir</span><strong class="dashboard-value dashboard-pick">${pick?clubBadge(pickName,'sm')+esc(pickName):'Nije odabrano'}${pick?.is_double?' <span class="dashboard-double">×2</span>':''}</strong><span class="dashboard-caption">${pick?'Odabir je spremljen':d.round.locked?'Rok je istekao':'Odaberi ekipu ispod'}</span></div>
  </div></section>`;
 }
 function renderRound(d){
@@ -331,7 +327,7 @@ function renderRound(d){
  right+=`<div class="card"><div class="card-head"><h2>Nisu birali</h2><span class="pill pink">${notPicked.length}</span></div><div class="not-picked">${notPicked.map(x=>`<span>${esc(x.name)}</span>`).join('')||'<div class="green">Svi su odabrali ✓</div>'}</div></div>`;
  right+=renderRoundPickStats(d);
 
- $('#main').innerHTML=mobileRoundDashboard(d)+hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
+ $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+mobileRoundDashboard(d)+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
  startRoundCountdown(d);
  if(roundComplete(d))setTimeout(()=>showRoundWinnerPopup(d),80);
 }
