@@ -644,3 +644,20 @@ check('Ranking form dots are scoped and settled, with purple only for a successf
   assert(after.data.rows.every(p=>p.form.every(f=>f.round>=1&&f.round<=10)));
  }finally{x.env.DB.close();}
 });
+
+
+check('ESPN second half stays LIVE and retains minute instead of becoming PAUSED',async()=>{
+ const x=await fresh(),old=globalThis.fetch;
+ try{
+  x.env.DB.sqlite.exec("UPDATE fixtures SET kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
+  globalThis.fetch=async url=>{
+   if(String(url).includes('site.api.espn.com'))return Response.json({events:[{status:{displayClock:"61'"},competitions:[{competitors:[{homeAway:'home',score:'2',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_SECOND_HALF',state:'in',completed:false}}}]}]});
+   return new Response('<h4>ENGLESKA: Premier League</h4>',{status:200});
+  };
+  const result=await syncFootball(x.env,false);
+  assert.equal(result.source,'ESPN');
+  const fixture=x.env.DB.sqlite.prepare("SELECT status,home_score,away_score FROM fixtures WHERE id='f1'").get();
+  assert.deepEqual([fixture.status,fixture.home_score,fixture.away_score],['IN_PLAY',2,0]);
+  assert.equal(x.env.DB.sqlite.prepare("SELECT value FROM meta WHERE key='live-minute:f1'").get().value,'61');
+ }finally{globalThis.fetch=old;x.env.DB.close();}
+});
