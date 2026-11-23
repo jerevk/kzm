@@ -478,3 +478,13 @@ tr.opposing-pick td:first-child strong{color:#a31332}
 @media(max-width:720px){.ranking-table .table-position{flex-direction:row;gap:3px}.ranking-table .ranking-col-place{width:84px}.ranking-table .place-change{min-width:23px;height:23px;font-size:15px;padding:2px 3px}.ranking-table .pos{width:29px;height:29px;min-width:29px}}
 :root[data-theme="dark"] .ranking-table .place-change-up{background:#194835;color:#a6edc9;border-color:#3d8061}
 :root[data-theme="dark"] .ranking-table .place-change-down{background:#492832;color:#ffc0ca;border-color:#86505e}
+
+/* Mobile: picked fixture first, compact position and points immediately below. */
+@media(max-width:720px){
+ .mobile-dashboard{margin:10px 0 14px}
+ .dashboard-tiles{gap:8px}
+ .dashboard-tile{min-height:86px;padding:10px 12px;border-radius:13px;gap:3px;box-shadow:0 2px 10px rgba(23,8,28,.045)}
+ .dashboard-label{font-size:10px}
+ .dashboard-value{font-size:25px;line-height:1.1}
+ .dashboard-caption{font-size:10px;line-height:1.25}
+}
