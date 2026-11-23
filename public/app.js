@@ -263,6 +263,28 @@ function showCycleWinnerPopup(d){
  const names=c.winners.map(x=>x.name),plural=names.length>1;
  winnerPopup(`${plural?'Pobjednici':'Pobjednik'} ${c.id}. kruga`,plural?`Čestitam, <strong>${esc(names.join(', '))}</strong>, vi niste magarci, pobijedili ste <strong>${c.id}. krug</strong>, POT je vaš!`:`Čestitam, <strong>${esc(names[0])}</strong>, ti nisi magarac, pobijedio si <strong>${c.id}. krug</strong>, POT je tvoj!`,`kzm_cycle_winner_${c.id}_${names.join('|')}_${c.winners[0].points}`);
 }
+function opposingPickPlayerIds(d){
+ // An opponent is a player who picked the other club in the same fixture.
+ // Never calculate or render rival information before the round is revealed.
+ const ids=new Set();
+ if(!d?.round?.revealed)return ids;
+ const byTeam=new Map();
+ for(const player of d.players||[]){
+  const teamId=player.pick?.team_id;
+  if(teamId===null||teamId===undefined)continue;
+  const key=String(teamId);
+  if(!byTeam.has(key))byTeam.set(key,[]);
+  byTeam.get(key).push(player.id);
+ }
+ for(const fixture of d.fixtures||[]){
+  const home=byTeam.get(String(fixture.home_id))||[];
+  const away=byTeam.get(String(fixture.away_id))||[];
+  if(!home.length||!away.length)continue;
+  for(const id of home)ids.add(id);
+  for(const id of away)ids.add(id);
+ }
+ return ids;
+}
 function renderRound(d){
  const p=d.myPick,disabled=d.round.locked||state.boot.settings.picks_enabled!=='1';
  let pick='';
@@ -280,8 +302,9 @@ function renderRound(d){
  const notPicked=d.players.filter(x=>!x.chosen);
  let right='';
  if(d.round.revealed){
-  const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''}"><td><strong>${esc(x.name)}</strong></td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?doubleBadge(x.pick):'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
-  right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
+  const opponents=opposingPickPlayerIds(d);
+  const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''} ${opponents.has(x.id)?'opposing-pick':''}"><td><strong>${esc(x.name)}</strong>${opponents.has(x.id)?' <span class="opposing-pick-label" title="Igra protiv ekipe koju je odabrao drugi igrač">PROTIV</span>':''}</td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?doubleBadge(x.pick):'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
+  right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><p class="fine opposing-pick-note">Crveno su označeni igrači koji su odabrali suprotne ekipe iz iste utakmice.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
   right+=renderRoundTopScorers(d);
   right+=renderRoundPenas(d);
  }
