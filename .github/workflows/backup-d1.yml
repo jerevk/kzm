@@ -59,3 +59,31 @@ jobs:
             backup/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+      - name: Email encrypted backup to owner
+        env:
+          BACKUP_EMAIL_APP_PASSWORD: ${{ secrets.BACKUP_EMAIL_APP_PASSWORD }}
+          BACKUP_EMAIL_TO: djerkic10@gmail.com
+        shell: bash
+        run: |
+          test -n "$BACKUP_EMAIL_APP_PASSWORD" || { echo "Missing BACKUP_EMAIL_APP_PASSWORD GitHub secret"; exit 1; }
+          python3 - <<'PY'
+          import os, smtplib, ssl
+          from pathlib import Path
+          from email.message import EmailMessage
+          from datetime import datetime, timezone
+          file = Path('backup/kzm.sql.enc')
+          if file.stat().st_size > 18 * 1024 * 1024:
+              raise SystemExit('Encrypted backup exceeds safe Gmail attachment size. Backup remains in GitHub Actions artifact.')
+          msg = EmailMessage()
+          sender = 'djerkic10@gmail.com'
+          msg['From'] = sender
+          msg['To'] = os.environ['BACKUP_EMAIL_TO']
+          msg['Subject'] = 'KZM sigurnosna kopija - ' + datetime.now(timezone.utc).strftime('%Y-%m-%d')
+          msg.set_content('U prilogu je sifrirana sigurnosna kopija KZM baze. Lozinka za desifriranje nije poslana e-mailom. GitHub Actions cuva i rezervnu kopiju 30 dana.')
+          msg.add_attachment(file.read_bytes(), maintype='application', subtype='octet-stream', filename='kzm.sql.enc')
+          checksum = Path('backup/SHA256SUMS.txt')
+          msg.add_attachment(checksum.read_bytes(), maintype='text', subtype='plain', filename='SHA256SUMS.txt')
+          with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context(), timeout=30) as smtp:
+              smtp.login(sender, os.environ['BACKUP_EMAIL_APP_PASSWORD'])
+              smtp.send_message(msg)
+          PY
