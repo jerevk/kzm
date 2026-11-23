@@ -342,7 +342,23 @@ $('#wake-popup-host').addEventListener('click',e=>{if(e.target.classList.contain
  document.addEventListener('touchstart',e=>{if(!e.touches||e.touches.length!==1)return;const t=e.touches[0],drawer=$('#nav'),open=drawer?.classList.contains('open');if(!open&&t.clientX<=28){tracking=true;mode='open';sx=t.clientX;sy=t.clientY;}else if(open){tracking=true;mode='close';sx=t.clientX;sy=t.clientY;}},{passive:true});
  document.addEventListener('touchend',e=>{if(!tracking||!e.changedTouches||!e.changedTouches.length){tracking=false;return;}const t=e.changedTouches[0],dx=t.clientX-sx,dy=Math.abs(t.clientY-sy);if(Math.abs(dx)>70&&Math.abs(dx)>dy*1.2){if(mode==='open'&&dx>0)setMenu(true);if(mode==='close'&&dx<0)setMenu(false);}tracking=false;mode='';},{passive:true});
 })();
-document.addEventListener('change',e=>{if(e.target.id==='season-select'){const season=Number(e.target.value);state.selectedSeason=season;state.archiveScope='all';load(season===Number(state.boot.season)?'round':'archive');return;}if(e.target.id==='archive-scope'){state.archiveScope=e.target.value;load('archive');return;}if(e.target.id==='scope'){state.scope=e.target.value;load();return;}const f=e.target.closest?.('#admin-pick-form');if(f&&(e.target.name==='playerId'||e.target.name==='round')){state.adminPickPlayerId=f.elements.playerId.value;state.adminPickRound=Number(f.elements.round.value);syncAdminPickEditor();}});
+const themePreference=()=>{
+ try{const v=localStorage.getItem('kzm_theme');return ['light','dark','system'].includes(v)?v:'system';}catch{return 'system';}
+};
+function applyTheme(choice){
+ const dark=choice==='dark'||(choice==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+ document.documentElement.dataset.theme=dark?'dark':'light';
+ document.documentElement.style.colorScheme=dark?'dark':'light';
+ const picker=$('#theme-select');if(picker)picker.value=choice;
+}
+applyTheme(themePreference());
+if(window.matchMedia){
+ const media=window.matchMedia('(prefers-color-scheme: dark)');
+ const onSystemTheme=()=>{if(themePreference()==='system')applyTheme('system');};
+ if(media.addEventListener)media.addEventListener('change',onSystemTheme);
+ else if(media.addListener)media.addListener(onSystemTheme);
+}
+document.addEventListener('change',e=>{if(e.target.id==='theme-select'){const choice=e.target.value;if(!['system','light','dark'].includes(choice))return;try{localStorage.setItem('kzm_theme',choice);}catch{}applyTheme(choice);return;}if(e.target.id==='season-select'){const season=Number(e.target.value);state.selectedSeason=season;state.archiveScope='all';load(season===Number(state.boot.season)?'round':'archive');return;}if(e.target.id==='archive-scope'){state.archiveScope=e.target.value;load('archive');return;}if(e.target.id==='scope'){state.scope=e.target.value;load();return;}const f=e.target.closest?.('#admin-pick-form');if(f&&(e.target.name==='playerId'||e.target.name==='round')){state.adminPickPlayerId=f.elements.playerId.value;state.adminPickRound=Number(f.elements.round.value);syncAdminPickEditor();}});
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button');
  if(!b){const menu=$('#team-picker-menu');if(menu&&!e.target.closest('.team-picker-wrap'))menu.classList.remove('open');return;}
