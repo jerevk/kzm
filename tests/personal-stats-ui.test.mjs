@@ -96,12 +96,12 @@ test('Club names are escaped in both statistics and rendered history',()=>{
 test('Ranking movement labels distinguish up, down, unchanged and unavailable comparisons',()=>{
  const x=setup(),comparison={round:12};
  const up=x.rankMovementBadge({placeChange:2,previousPlace:5},comparison);
- assert.match(up,/place-change-up/);assert.match(up,/>\+2</);
+ assert.match(up,/place-change-up/);assert.match(up,/↑<\/span><small>2<\/small>/);
  assert.match(up,/Prije 12\. kola: 5\. mjesto/);
  const down=x.rankMovementBadge({placeChange:-1,previousPlace:3},comparison);
- assert.match(down,/place-change-down/);assert.match(down,/>-1</);
+ assert.match(down,/place-change-down/);assert.match(down,/↓<\/span><small>1<\/small>/);
  const unchanged=x.rankMovementBadge({placeChange:0,previousPlace:2},comparison);
- assert.match(unchanged,/Bez promjene mjesta/);assert.match(unchanged,/>0</);
+ assert.match(unchanged,/Bez promjene mjesta/);assert.match(unchanged,/→<\/span>/);
  for(const [row,baseline] of [[{placeChange:0,previousPlace:null},comparison],[{placeChange:0,previousPlace:2},null]]){
   const missing=x.rankMovementBadge(row,baseline);
   assert.match(missing,/Još nema usporedbe/);assert.match(missing,/>–</);
