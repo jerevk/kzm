@@ -344,25 +344,45 @@ export async function syncFootball(env,manual=false){
   await s("INSERT INTO meta(key,value) VALUES('last_live_poll',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)).run();
 
   await ensureSourceRace(env);
-  // Measure both providers for every active fixture. Only ESPN results have first priority in D1.
-  // The comparison records each provider's first observation of the same score.
-  let espnRows=[],espnApplied=new Set(),rezultatiRows=[],rezultatiApplied=new Set(),espnError='',rezultatiError='';
-  const [espnResponse,rezultatiResponse]=await Promise.allSettled([fetchEspn(now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)})),fetchRezultati().then(data=>({data,observedAt:Math.floor(Date.now()/1000)}))]);
+  // Fetch both score sources concurrently and compare each response, not a fixed provider priority.
+  // If the quickest response still shows the stored score, accept a newer score from the other source.
+  let espnRows=[],rezultatiRows=[],espnError='',rezultatiError='';
+  const [espnResponse,rezultatiResponse]=await Promise.allSettled([
+   fetchEspn(now).then(data=>({data,observedAt:Math.floor(Date.now()/1000),receivedMs:Date.now()})),
+   fetchRezultati().then(data=>({data,observedAt:Math.floor(Date.now()/1000),receivedMs:Date.now()}))
+  ]);
   if(espnResponse.status==='fulfilled'){
    espnRows=espnRaceRows(espnResponse.value.data,active,espnResponse.value.observedAt);
-   await recordRaceRows(env,espnRows);
-   espnApplied=await applyLiveRows(env,s,espnRows,'ESPN');
    if(!espnRows.length)espnError='ESPN nije povezao aktivnu utakmicu.';
   }else espnError=String(espnResponse.reason?.message||espnResponse.reason).slice(0,300);
-  await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnError).run();
   if(rezultatiResponse.status==='fulfilled'){
    rezultatiRows=parseRezultatiLive(rezultatiResponse.value.data,active,rezultatiResponse.value.observedAt);
-   await recordRaceRows(env,rezultatiRows);
-   const remaining=rezultatiRows.filter(row=>!espnApplied.has(String(row.fixture_id)));
-   rezultatiApplied=await applyLiveRows(env,s,remaining,'Rezultati.com');
    if(!rezultatiRows.length)rezultatiError='Rezultati.com nije pronašao odgovarajuću aktivnu utakmicu Premier League.';
   }else rezultatiError=String(rezultatiResponse.reason?.message||rezultatiResponse.reason).slice(0,300);
-  await s("INSERT INTO meta(key,value) VALUES('source_race_rezultati_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",rezultatiError).run();
+  await Promise.all([
+   s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnError).run(),
+   s("INSERT INTO meta(key,value) VALUES('source_race_rezultati_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",rezultatiError).run()
+  ]);
+  // Keep independent observations for admin source-speed comparison.
+  await recordRaceRows(env,[...espnRows,...rezultatiRows]);
+  const responses=[
+   {rows:espnRows,source:'ESPN',ms:espnResponse.status==='fulfilled'?espnResponse.value.receivedMs:Infinity},
+   {rows:rezultatiRows,source:'Rezultati.com',ms:rezultatiResponse.status==='fulfilled'?rezultatiResponse.value.receivedMs:Infinity}
+  ].sort((a,b)=>a.ms-b.ms);
+  const picked=new Map();
+  for(const fixture of active){
+   const available=responses.flatMap(response=>response.rows.filter(row=>String(row.fixture_id)===String(fixture.id)&&usefulLiveRow(row)&&row.home_score!==null&&row.away_score!==null).map(row=>({...row,receivedMs:response.ms})));
+   if(!available.length)continue;
+   const hasNewScore=row=>Number(row.home_score)!==Number(fixture.home_score)||Number(row.away_score)!==Number(fixture.away_score)||fixture.home_score===null||fixture.away_score===null;
+   // A faster unchanged score must not suppress a fresh goal from the other provider.
+   const changes=available.filter(hasNewScore);
+   const selected=(changes.length?changes:available)[0];
+   picked.set(String(fixture.id),selected);
+  }
+  const firstRows=[...picked.values()].filter(r=>r.source==='ESPN');
+  const secondRows=[...picked.values()].filter(r=>r.source==='Rezultati.com');
+  const espnApplied=await applyLiveRows(env,s,firstRows,'ESPN');
+  const rezultatiApplied=await applyLiveRows(env,s,secondRows,'Rezultati.com');
   const applied=new Set([...espnApplied,...rezultatiApplied]);
   const source=espnApplied.size&&rezultatiApplied.size?'ESPN+Rezultati.com':espnApplied.size?'ESPN':rezultatiApplied.size?'Rezultati.com':'none';
   if(applied.size)await env.DB.batch([
