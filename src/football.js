@@ -179,7 +179,7 @@ export function parseRezultatiLive(html,active,observedAt){
  const clean=value=>String(value||'').replace(/<[^>]*>/g,'').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/&#39;|&#x27;|&apos;/gi,"'").replace(/\s+/g,' ').trim();
  const output=[];
  for(const raw of section.split(/<br\s*\/?>/i)){
-  const m=/<span\b([^>]*)>([\s\S]*?)<\/span>\s*([^<]+?)\s*<a\b[^>]*class=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(raw);
+  const m=/<span\b([^>]*)>([\s\S]*?)<\/span>\s*([^<]+?)\s*(?:<img\b[^>]*>\s*)*<a\b[^>]*class=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(raw);
   if(!m)continue;
   const names=clean(m[3]).split(/\s+-\s+/);
   if(names.length!==2)continue;
