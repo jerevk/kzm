@@ -20,6 +20,93 @@ check('Invalid round, boolean, unknown team are rejected',async()=>{const x=awai
 check('Closed round reveals saved pick and computes points',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1;UPDATE fixtures SET home_score=2,away_score=1,status='FINISHED' WHERE id='f1'");const r=await x.call('/round/1',{cookie:x.adminCookie});assert.equal(r.data.players.find(p=>p.id===x.userId).pick.points,4);const res=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(res.data.rows.find(p=>p.id===x.userId).points,4);assert.equal((await x.call('/stats?scope=1',{cookie:x.userCookie})).data.rows[0].count,1);}finally{x.env.DB.close();}});
 check('Results identify the exact round where DOUBLE was used',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1");const r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.deepEqual(r.data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:null,settled:false}]);}finally{x.env.DB.close();}});
 
+check('Rank movement compares points strictly before the latest scoring round and preserves shared places',async()=>{const x=await fresh();try{
+ const ids=['owner',x.userId];
+ for(const name of ['Tie Player','Last Player']){
+  const created=await x.call('/admin/players',{cookie:x.adminCookie,body:{name,password:USER_PASSWORD}});assert.equal(created.status,201);ids.push(created.data.player.id);
+ }
+ const insert=x.env.DB.sqlite.prepare('INSERT INTO picks(player_id,round_no,cycle,team_id,base,imported_points) VALUES(?,?,1,?,?,?)');
+ for(const [i,id] of ids.entries())for(const [round,points] of [[1,[5,3,3,0][i]],[2,[0,4,2,5][i]],[3,null]])insert.run(id,round,'t'+round,round+1,points);
+ let clock=Math.floor(Date.now()/1000);x.env.DB.sqlite.function('unixepoch',()=>clock);
+ const deadline=clock+1;
+ x.env.DB.sqlite.prepare('UPDATE rounds SET deadline=? WHERE number IN(1,3)').run(clock-1);
+ x.env.DB.sqlite.prepare('UPDATE rounds SET deadline=? WHERE number=2').run(deadline);
+ const get=async()=>{const r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(r.status,200);return r.data;};
+ const places=data=>ids.map(id=>{const r=data.rows.find(p=>p.id===id);assert(!('previous_points' in r));assert(!('comparison_round' in r));return [r.points,r.place,r.previousPlace,r.placeChange];});
+ let data=await get();
+ assert.deepEqual(data.comparison,{round:1});
+ assert.deepEqual(places(data),[[5,1,1,0],[3,2,1,-1],[3,2,1,-1],[0,4,1,-3]]);
+ clock=deadline;
+ data=await get();
+ assert.deepEqual(data.comparison,{round:2});
+ assert.deepEqual(places(data),[[5,2,1,-1],[7,1,2,1],[5,2,2,0],[5,2,4,2]]);
+ x.env.DB.sqlite.prepare('UPDATE picks SET imported_points=2 WHERE player_id=? AND round_no=3').run(x.userId);
+ data=await get();
+ assert.deepEqual(data.comparison,{round:3});
+ assert.deepEqual(places(data),[[5,2,2,0],[9,1,1,0],[5,2,2,0],[5,2,2,0]]);
+}finally{x.env.DB.close();}});
+
+check('Rank movement uses independent overall and cycle comparison periods',async()=>{const x=await fresh();try{
+ const insert=x.env.DB.sqlite.prepare('INSERT INTO picks(player_id,round_no,cycle,team_id,base,imported_points) VALUES(?,?,?,?,2,?)');
+ for(const [round,team,adminPoints,userPoints] of [[1,'t1',6,0],[11,'t1',0,4],[12,'t2',4,0]]){
+  insert.run('owner',round,cycleFor(round),team,adminPoints);insert.run(x.userId,round,cycleFor(round),team,userPoints);
+ }
+ x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number IN(1,11,12)');
+ const cases=[
+  ['all',12,[[10,1,1,0],[4,2,2,0]]],
+  ['1',1,[[6,1,1,0],[0,2,1,-1]]],
+  ['2',12,[[4,1,2,1],[4,1,1,0]]],
+  ['3',null,[[0,1,null,null],[0,1,null,null]]],
+  ['4',null,[[0,1,null,null],[0,1,null,null]]]
+ ];
+ for(const [scope,round,expected] of cases){
+  const r=await x.call('/results?scope='+scope,{cookie:x.userCookie});assert.equal(r.status,200);
+  assert.deepEqual(r.data.comparison,round===null?null:{round},scope);
+  assert.deepEqual(['owner',x.userId].map(id=>{const p=r.data.rows.find(p=>p.id===id);return [p.points,p.place,p.previousPlace,p.placeChange];}),expected,scope);
+ }
+}finally{x.env.DB.close();}});
+
+check('Rank movement starts with published imported zero and follows live points without requiring settlement',async()=>{const x=await fresh();try{
+ const insert=x.env.DB.sqlite.prepare('INSERT INTO picks(player_id,round_no,cycle,team_id,base) VALUES(?,?,1,?,?)');
+ for(const [id,round,team,base] of [['owner',1,'t1',2],[x.userId,1,'t2',3],[x.userId,2,'t3',4],['owner',3,'t4',5],[x.userId,3,'t5',1]])insert.run(id,round,team,base);
+ x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number IN(1,2);INSERT INTO fixtures(id,round_no,home_id,away_id,home_score,away_score,status) VALUES('f3',3,'t4','t5',2,0,'IN_PLAY')");
+ const get=async()=>{const r=await x.call('/results',{cookie:x.userCookie});assert.equal(r.status,200);return r.data;};
+ const places=data=>['owner',x.userId].map(id=>{const r=data.rows.find(p=>p.id===id);return [r.points,r.place,r.previousPlace,r.placeChange];});
+ let data=await get();assert.equal(data.comparison,null);assert.deepEqual(places(data),[[0,1,null,null],[0,1,null,null]]);
+ x.env.DB.sqlite.prepare('UPDATE picks SET imported_points=0 WHERE player_id=? AND round_no=2').run(x.userId);
+ data=await get();assert.deepEqual(data.comparison,{round:2});assert.deepEqual(places(data),[[0,1,1,0],[0,1,1,0]]);
+ x.env.DB.sqlite.prepare('UPDATE picks SET imported_points=5 WHERE player_id=? AND round_no=2').run(x.userId);
+ data=await get();assert.deepEqual(data.comparison,{round:2});assert.deepEqual(places(data),[[0,2,1,-1],[5,1,1,0]]);
+ x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number=3');
+ data=await get();assert.deepEqual(data.comparison,{round:3});assert.deepEqual(places(data),[[5,1,2,1],[5,1,1,0]]);
+ x.env.DB.sqlite.exec("UPDATE fixtures SET home_score=0,away_score=1 WHERE id='f3'");
+ data=await get();assert.deepEqual(data.comparison,{round:3});assert.deepEqual(places(data),[[0,2,2,0],[7,1,1,0]]);
+}finally{x.env.DB.close();}});
+
+check('Rank movement excludes inactive players and unpublished scores without leaking pending DOUBLE choices',async()=>{const x=await fresh();try{
+ const observer=await x.call('/admin/players',{cookie:x.adminCookie,body:{name:'Observer Player',password:USER_PASSWORD}});assert.equal(observer.status,201);
+ const login=await x.call('/login',{body:{name:'Observer Player',password:USER_PASSWORD}});assert.equal(login.status,200);
+ const inactive=await x.call('/admin/players',{cookie:x.adminCookie,body:{name:'Inactive Player',password:USER_PASSWORD}});assert.equal(inactive.status,201);
+ const insert=x.env.DB.sqlite.prepare('INSERT INTO picks(player_id,round_no,cycle,team_id,base,is_double,imported_points) VALUES(?,?,?,?,2,?,?)');
+ for(const [id,points] of [['owner',8],[x.userId,4]]){
+  insert.run(id,1,1,'t1',0,points);insert.run(id,11,2,'t2',1,points*25);insert.run(id,20,3,'t3',1,points*50);
+ }
+ insert.run(inactive.data.player.id,1,1,'t1',0,99);insert.run(inactive.data.player.id,29,4,'t1',0,999);
+ x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number IN(1,29);UPDATE rounds SET deadline=NULL WHERE number=20');
+ assert.equal((await x.call(`/admin/players/${inactive.data.player.id}/active`,{cookie:x.adminCookie,body:{active:false}})).status,200);
+ for(const [cookie,viewerId] of [[x.adminCookie,'owner'],[x.userCookie,x.userId],[login.cookie,observer.data.player.id]])for(const scope of ['all','2','3','4']){
+  const r=await x.call('/results?scope='+scope,{cookie});assert.equal(r.status,200);assert.equal(r.data.rows.length,3);assert(!r.data.rows.some(p=>p.id===inactive.data.player.id));
+  assert.deepEqual(r.data.comparison,scope==='all'?{round:1}:null);
+  const expected=scope==='all'?[[8,1,1,0],[4,2,1,-1],[0,3,1,-2]]:[[0,1,null,null],[0,1,null,null],[0,1,null,null]];
+  assert.deepEqual(['owner',x.userId,observer.data.player.id].map(id=>{const p=r.data.rows.find(p=>p.id===id);return [p.points,p.place,p.previousPlace,p.placeChange];}),expected);
+  for(const id of ['owner',x.userId]){
+   const own=id===viewerId;
+   const pending=[{cycle:2,round:11,points:null,settled:false},{cycle:3,round:20,points:null,settled:false}].filter(p=>own&&(scope==='all'||String(p.cycle)===scope));
+   const p=r.data.rows.find(p=>p.id===id);assert.deepEqual(p.doubleRounds,pending);assert.deepEqual(p.doubles,pending.map(p=>p.cycle));
+  }
+ }
+}finally{x.env.DB.close();}});
+
 check('DOUBLE outcome metadata uses each pick result and only settles final matches',async()=>{const x=await fresh();try{
  assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}})).status,200);
  assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:2,teamId:'t3',double:false}})).status,200);

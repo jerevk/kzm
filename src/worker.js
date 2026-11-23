@@ -162,20 +162,38 @@ async function roundData(env,u,n){
 }
 async function resultsData(env,u,scope){
  const c=scopeRange(scope);
- const rows=await all(env,`SELECT u.id,u.name,u.active,COALESCE(SUM(s.points),0) AS points FROM players u
- LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN ? AND ?
+ // Reuse published scores once for the comparison boundary and both point totals.
+ const rows=await all(env,`WITH scoped_scores AS MATERIALIZED (
+ SELECT s.player_id,s.round_no,s.points FROM pick_scores s
+ JOIN players p ON p.id=s.player_id AND p.active=1
+ WHERE s.round_no BETWEEN ? AND ?
+ ), comparison AS (
+ SELECT MAX(round_no) AS round_no FROM scoped_scores WHERE points IS NOT NULL
+ )
+ SELECT u.id,u.name,u.active,COALESCE(SUM(s.points),0) AS points,
+ COALESCE(SUM(CASE WHEN s.round_no<q.round_no THEN s.points END),0) AS previous_points,
+ q.round_no AS comparison_round FROM players u
+ CROSS JOIN comparison q LEFT JOIN scoped_scores s ON s.player_id=u.id
  WHERE u.active=1
- GROUP BY u.id,u.name,u.active`,c.from,c.to);
+ GROUP BY u.id,u.name,u.active,q.round_no`,c.from,c.to);
+ const comparisonRound=rows[0]?.comparison_round??null;
+ const comparison=comparisonRound===null?null:{round:comparisonRound};
+ const previousPlaces=new Map(comparison?rank(rows.map(r=>({id:r.id,name:r.name,points:r.previous_points}))).map(r=>[r.id,r.place]):[]);
  const pays=await all(env,'SELECT player_id,cycle,paid FROM payments');
  const doubles=await all(env,`SELECT p.player_id,p.cycle,p.round_no,p.points,p.points IS NOT NULL AND (p.imported_points IS NOT NULL OR p.match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND ((r.deadline IS NOT NULL AND r.deadline<=unixepoch()) OR p.player_id=?) ORDER BY p.round_no`,c.from,c.to,u.id);
- const ranked=rank(rows.map(r=>({...r,payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled}))})));
+ const ranked=rank(rows.map(({previous_points,comparison_round,...r})=>({
+  ...r,
+  payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),
+  doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),
+  doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled}))
+ }))).map(r=>{const previousPlace=previousPlaces.get(r.id)??null;return {...r,previousPlace,placeChange:previousPlace===null?null:previousPlace-r.place};});
  let cycleInfo=null;
  if(c.id){
   const endFixtures=await all(env,'SELECT status,home_score,away_score FROM fixtures WHERE round_no=?',c.to);
   const finished=endFixtures.length>=10&&endFixtures.every(f=>['FINISHED','AWARDED'].includes(String(f.status||'').toUpperCase())&&f.home_score!==null&&f.away_score!==null);
   cycleInfo={id:c.id,from:c.from,to:c.to,finished,winners:finished?ranked.filter(r=>r.place===1).map(r=>({id:r.id,name:r.name,points:r.points})):[]};
  }
- return {ok:true,scope:scope||'all',rows:ranked,cycleInfo};
+ return {ok:true,scope:scope||'all',rows:ranked,cycleInfo,comparison};
 }
 async function adminPanel(env){
  await activateApprovedRegistrations(env);

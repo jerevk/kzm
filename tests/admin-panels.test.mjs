@@ -20,7 +20,7 @@ function setup(){
  const context={state,
   $:selector=>selector==='#main'?main:selector==='#password-dialog'?{open:ui.passwordOpen}:selector==='#main details[data-admin-panel][open] form'&&ui.formOpen?{}:null,
   document:{visibilityState:'visible',querySelectorAll:()=>ui.panels},
-  navigation:{record:value=>ui.history.push(value)},currentRoute:()=>({view:state.view}),nav:()=>{},setMenu:()=>{},
+  navigation:{record:value=>ui.history.push(value)},currentRoute:()=>({view:state.view}),nav:()=>{},setMenu:()=>{},stopRoundCountdown:()=>{},
   api:path=>{ui.requests.push(path);return Promise.resolve({updated:true});},
   renderAdmin:()=>ui.rendered.push({view:'admin',open:[...state.adminOpenPanels]}),
   renderRules:()=>ui.rendered.push({view:'rules'}),

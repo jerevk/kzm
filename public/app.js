@@ -1,10 +1,41 @@
 import {createPushManager} from './js/push.js';
 import {createNavigation} from './js/navigation.js?v=20261123-back1';
 import {getSeasonClubRanking} from './js/season-rules.js?v=20261123-clubs1';
+import {createServerClock,getRoundCountdown} from './js/countdown.js?v=20261123-player1';
+import {calculatePersonalStats} from './js/personal-stats.js?v=20261123-player1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
 const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[]};
+let roundCountdownTimer=null,roundCountdownContext=null;
+function stopRoundCountdown(){if(roundCountdownTimer!==null)clearInterval(roundCountdownTimer);roundCountdownTimer=null;}
+function rememberRoundClock(d){
+ const key=String(d.round.number)+'|'+String(d.round.deadline);
+ roundCountdownContext={key,round:Number(d.round.number),now:createServerClock(d.serverTime),refreshRequested:roundCountdownContext?.key===key&&roundCountdownContext.refreshRequested};
+}
+function updateRoundCountdown(){
+ const host=$('#round-countdown'),d=state.roundData,clock=roundCountdownContext;
+ if(!host||!state.boot||state.view!=='round'||!d||!clock||clock.round!==Number(state.round)||document.visibilityState==='hidden')return;
+ const countdown=getRoundCountdown(d.round.deadline,clock.now());
+ host.dataset.status=countdown.status;host.dataset.urgency=countdown.urgency;
+ const title=$('#round-countdown-title'),value=$('#round-countdown-value'),note=$('#round-countdown-note');
+ const titleText=countdown.status==='open'?'Do zaključavanja kola':'Rok za odabir';
+ const noteText=countdown.status==='unset'?'Odabiri čekaju postavljanje roka.':d.myPick?'Tvoj je odabir spremljen.':countdown.status==='locked'?'Nema spremljenog odabira.':'Još nisi spremio odabir.';
+ if(title&&title.textContent!==titleText)title.textContent=titleText;
+ if(value&&value.textContent!==countdown.label)value.textContent=countdown.label;
+ if(note&&note.textContent!==noteText)note.textContent=noteText;
+ if(countdown.status==='locked'&&!d.round.locked){
+  document.querySelectorAll('#pick-form input, #pick-form button, [data-action="change-pick"]').forEach(control=>{control.disabled=true;});
+  if(!clock.refreshRequested&&!state.busy&&!state.liveRefreshing){clock.refreshRequested=true;liveRefreshTick().catch(error=>{if(state.boot&&state.view==='round')toast(error.message||'Osvježi prikaz kola.');});}
+ }
+}
+function startRoundCountdown(d){
+ const key=String(d.round.number)+'|'+String(d.round.deadline);
+ if(roundCountdownContext?.key!==key)rememberRoundClock(d);
+ stopRoundCountdown();updateRoundCountdown();
+ if(!d.round.locked&&getRoundCountdown(d.round.deadline,roundCountdownContext.now()).status!=='unset')roundCountdownTimer=setInterval(updateRoundCountdown,1000);
+}
+function roundCountdownCard(){return '<section id="round-countdown" class="round-countdown" aria-label="Rok za odabir"><div><div id="round-countdown-title" class="countdown-title">Do zaključavanja kola</div><div id="round-countdown-value" class="countdown-value" role="timer" aria-live="off"></div></div><p id="round-countdown-note" role="status"></p></section>';}
 function currentRoute(){return {view:state.view,selectedSeason:state.selectedSeason,round:state.round,cycle:state.cycle,scope:state.scope,archiveScope:state.archiveScope};}
 function normalizeRoute(value){
  const route=value&&typeof value==='object'?value:{},boot=state.boot;
@@ -81,7 +112,7 @@ async function loadLoginPlayers(){
   if(saved&&state.loginPlayers.some(p=>p.name===saved))select.value=saved;renderRegistrationEntry();
  }catch(e){select.innerHTML='<option value="">Ne mogu učitati igrače</option>';state.registration=null;renderRegistrationEntry();}
 }
-function showLogin(){state.boot=null;state.sequence++;navigation.stop();rememberAdminPanels(null);closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
+function showLogin(){state.boot=null;state.sequence++;stopRoundCountdown();roundCountdownContext=null;navigation.stop();rememberAdminPanels(null);closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
 function setMenu(open){$('#nav').classList.toggle('open',open);const v=$('#veil');v.hidden=!open;v.classList.toggle('open',open);}
 function nav(){
  const archived=Number(state.selectedSeason)!==Number(state.boot.season);
@@ -121,6 +152,7 @@ async function enter(restoreHistory=true){
 function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat</label><select class="scope" aria-label="Odabir kruga" id="scope">${[1,2,3,4].map(c=>`<option value="${c}" ${state.scope===String(c)?'selected':''}>Krug ${c} · kola ${state.boot.cycles.find(x=>x.id===c)?.from||''}–${state.boot.cycles.find(x=>x.id===c)?.to||''}</option>`).join('')}<option value="all" ${state.scope==='all'?'selected':''}>Ukupna tablica · sva 4 kruga</option></select></div>`;}
 async function load(view=state.view,silent=false,historyMode='push'){
  if(!state.boot)return;
+ if(!silent||view!=='round')stopRoundCountdown();
  if(silent&&view==='admin'&&adminFormOpen())return;
  rememberAdminPanels(view);
  state.view=view;if(!silent&&historyMode!=='skip')navigation.record(currentRoute());
@@ -128,7 +160,7 @@ async function load(view=state.view,silent=false,historyMode='push'){
  try{let data;
   if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
-  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.roundData=data;renderRound(data);}
+  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.roundData=data;rememberRoundClock(data);renderRound(data);}
   if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence)return;renderResults(data);}
   if(view==='mine'){data=await api('/mine');if(seq!==state.sequence)return;renderMine(data);}
   if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence)return;renderStats(data);}
@@ -155,7 +187,7 @@ async function liveRefreshTick(){
  }finally{state.liveRefreshing=false;}
 }
 setInterval(liveRefreshTick,15000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')liveRefreshTick();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){updateRoundCountdown();liveRefreshTick();}});
 
 function doubleBadge(p,label='x2 DOUBLE'){
  const raw=p?.points,points=typeof raw==='number'||(typeof raw==='string'&&raw.trim()!=='')?Number(raw):NaN;
@@ -256,7 +288,8 @@ function renderRound(d){
  right+=`<div class="card"><div class="card-head"><h2>Nisu birali</h2><span class="pill pink">${notPicked.length}</span></div><div class="not-picked">${notPicked.map(x=>`<span>${esc(x.name)}</span>`).join('')||'<div class="green">Svi su odabrali ✓</div>'}</div></div>`;
  right+=renderRoundPickStats(d);
 
- $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
+ $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
+ startRoundCountdown(d);
  if(roundComplete(d))setTimeout(()=>showRoundWinnerPopup(d),80);
 }
 
@@ -297,12 +330,35 @@ function renderArchive(d){
  const table=d.rows.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Igrač</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><span class="pos">${Number(r.place)}</span></td><td><strong>${esc(r.name)}</strong></td><td class="points right">${Number(r.points)}</td></tr>`).join('')}</tbody></table></div>`:empty('Za ovu sezonu i odabrani krug još nisu uneseni podaci sa starih fotografija.');
  $('#main').innerHTML=hero('Arhiva sezone '+label,'Povijesna tablica, odvojena od aktualnog natjecanja','ARHIVA')+picker+'<div class="card">'+table+'</div>';
 }
+function rankMovementBadge(row,comparison){
+ const change=row.placeChange;
+ if(!comparison||!Number.isInteger(change)||!Number.isInteger(row.previousPlace))return '<span class="place-change place-change-none" aria-label="Još nema usporedbe">–</span>';
+ const label=change>0?'Napredak za '+change+' mjesta':change<0?'Pad za '+Math.abs(change)+' mjesta':'Bez promjene mjesta';
+ const description=label+'. Prije '+Number(comparison.round)+'. kola: '+row.previousPlace+'. mjesto.';
+ return `<span class="place-change ${change>0?'place-change-up':change<0?'place-change-down':'place-change-none'}" title="${attr(description)}" aria-label="${attr(description)}">${change>0?'+':''}${change}</span>`;
+}
 function renderResults(d){
  const cycleBlock=renderCycleWinner(d);
- $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><div class="table-wrap"><table><thead><tr><th>#</th><th>Igrač</th><th>DOUBLE (kolo)</th><th>Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr class="${r.id===state.boot.user.id?'me':''}"><td><span class="pos ${d.cycleInfo?.finished&&r.place===1?'champ':''}">${r.place}</span></td><td><strong>${esc(r.name)}</strong>${r.active?'':' <span class="muted">(neaktivan)</span>'}</td><td>${(r.doubleRounds||[]).map(x=>doubleBadge(x,`Kolo ${x.round}`)).join(', ')||'<span class="muted">–</span>'}</td><td>${(state.scope==='all'?[1,2,3,4]:[Number(state.scope)]).map(c=>r.payments[c]===true?'<span class="green">DA</span>':r.payments[c]===false?'<span class="pink">NE</span>':'-').join(' / ')}</td><td class="points right"><strong>${r.points}</strong></td></tr>`).join('')}</tbody></table></div></div>`;
+ const comparison=d.comparison?`Pomak u odnosu na poredak prije ${Number(d.comparison.round)}. kola. Tijekom utakmica ažurira se uživo.`:'Pomak će se prikazati nakon prvih obračunatih odabira.';
+ const rows=d.rows.map(r=>`<tr class="${r.id===state.boot.user.id?'me':''}"><td><div class="table-position"><span class="pos ${d.cycleInfo?.finished&&r.place===1?'champ':''}">${r.place}</span>${rankMovementBadge(r,d.comparison)}</div></td><td><strong>${esc(r.name)}</strong>${r.active?'':' <span class="muted">(neaktivan)</span>'}</td><td>${(r.doubleRounds||[]).map(x=>doubleBadge(x,`Kolo ${x.round}`)).join(', ')||'<span class="muted">–</span>'}</td><td>${(state.scope==='all'?[1,2,3,4]:[Number(state.scope)]).map(c=>r.payments[c]===true?'<span class="green">DA</span>':r.payments[c]===false?'<span class="pink">NE</span>':'-').join(' / ')}</td><td class="points right"><strong>${r.points}</strong></td></tr>`).join('');
+ $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><p class="fine ranking-note">${esc(comparison)} Igrači s jednakim brojem bodova dijele mjesto.</p><div class="table-wrap"><table><thead><tr><th>Mjesto / pomak</th><th>Igrač</th><th>DOUBLE (kolo)</th><th>Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="right">Bodovi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
  if(d.cycleInfo?.finished)setTimeout(()=>showCycleWinnerPopup(d),80);
 }
-function renderMine(d){const rows=d.rows.filter(r=>state.scope==='all'||r.cycle===Number(state.scope));$('#main').innerHTML=hero('Moji odabiri','Pregled svih tvojih utakmica i odabira')+scopeSelect()+`<div class="card"><div class="table-wrap"><table><thead><tr><th>Kolo</th><th>Ekipa</th><th>DOUBLE</th><th>Rezultat</th><th class="right">Bodovi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.round_no}</td><td>${teamPill(r.team_name)}</td><td>${r.is_double?doubleBadge(r,'x2'):'-'}</td><td>${r.home_score===null?'-':r.home_score+' : '+r.away_score}</td><td class="points right">${r.points??'-'}</td></tr>`).join('')}</tbody></table></div>${rows.length?'':empty('Nema odabira za ovaj prikaz.')}</div>`;}
+function renderPersonalStats(rows){
+ const stats=calculatePersonalStats(rows),percent=value=>value===null?'–':new Intl.NumberFormat('hr-HR',{maximumFractionDigits:1}).format(value)+' %';
+ const bestRounds=stats.bestRounds.map(r=>r.round).join(', '),bestClubs=stats.bestClubs.map(c=>c.name).join(', ');
+ const statCard=(label,value,detail)=>`<article class="personal-stat"><h3>${esc(label)}</h3><div class="personal-stat-value">${esc(value)}</div><p>${esc(detail)}</p></article>`;
+ return `<section class="card personal-stats-card"><div class="card-head"><h2>Moja statistika</h2><span class="pill">${state.scope==='all'?'Cijela sezona':Number(state.scope)+'. krug'}</span></div><p class="fine">${stats.settledPicks} završenih odabira · ${stats.pendingPicks} čeka ishod · ${stats.confirmedPoints} potvrđenih bodova</p><div class="personal-stat-grid">`+
+  statCard('Pogođeni odabiri',stats.settledPicks?stats.hits+' / '+stats.settledPicks:'–',stats.settledPicks?percent(stats.hitRate)+' uspješnosti · '+stats.misses+' bez bodova':'Još nema završenih odabira.')+
+  statCard('Pogođeni DOUBLE',stats.doubleSettled?stats.doubleHits+' / '+stats.doubleSettled:'–',(stats.doubleSettled?percent(stats.doubleHitRate)+' uspješnosti. ':'')+stats.doubleUsed+' iskorišteno · '+stats.doublePending+' čeka ishod')+
+  statCard(stats.bestRounds.length>1?'Najbolja kola':'Najbolje kolo',bestRounds?(stats.bestRounds.length>1?'Kola ':'Kolo ')+bestRounds:'–',stats.bestRounds.length?stats.bestRounds[0].points+' bodova po kolu':'Još nema potvrđenih bodova.')+
+  statCard(stats.bestClubs.length>1?'Klubovi s najviše bodova':'Klub s najviše bodova',bestClubs||'–',stats.bestClubs.length?stats.bestClubs[0].points+' bodova '+(stats.bestClubs.length>1?'po klubu':'ukupno'):'Još nema potvrđenih bodova.')+
+  '</div><p class="fine personal-stats-note">Pogođen je odabir koji donese barem jedan bod. Uspješnost i najbolji rezultati računaju se iz završenih odabira; oni koji čekaju ishod vode se zasebno.</p></section>';
+}
+function renderMine(d){
+ const rows=d.rows.filter(r=>state.scope==='all'||r.cycle===Number(state.scope));
+ $('#main').innerHTML=hero('Moji odabiri i statistika','Tvoji rezultati po krugu ili za cijelu sezonu')+scopeSelect()+renderPersonalStats(rows)+`<div class="card"><div class="card-head"><h2>Povijest odabira</h2></div><div class="table-wrap"><table><thead><tr><th>Kolo</th><th>Ekipa</th><th>DOUBLE</th><th>Rezultat</th><th class="right">Bodovi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.round_no}</td><td>${teamPill(r.team_name)}</td><td>${r.is_double?doubleBadge(r,'x2'):'-'}</td><td>${r.home_score===null||r.home_score===undefined?'-':r.home_score+' : '+r.away_score}</td><td class="points right">${r.points??'-'}</td></tr>`).join('')}</tbody></table></div>${rows.length?'':empty('Nema odabira za ovaj prikaz.')}</div>`;
+}
 function renderStats(d){const max=Math.max(1,...d.rows.map(r=>r.count));$('#main').innerHTML=hero('Statistika','Koliko je puta koji klub biran')+scopeSelect()+`<div class="card"><div class="pick-stats-list">${d.rows.map(r=>`<div class="pick-stat-row"><div class="pick-stat-club">${clubBadge(r.name,'sm')}<span>${esc(r.name)}</span></div><div class="pick-stat-track"><span style="width:${Math.round(100*r.count/max)}%"></span></div><div class="pick-stat-count">${r.count}</div></div>`).join('')||empty('Jos nema odabira u zakljucanim kolima.')}</div></div>`;}
 function renderStandings(d){$('#main').innerHTML=hero('Premier League uzivo','Poredak iz spremljenih zavrsenih utakmica')+`<div class="card"><div class="table-wrap"><table><thead><tr><th>#</th><th>Klub</th><th>Od.</th><th>P</th><th>N</th><th>I</th><th>Golovi</th><th>GR</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><span class="pos">${r.place}</span></td><td><span class="club-inline">${clubBadge(r.name,'sm')}<strong>${esc(r.name)}</strong></span></td><td>${r.played}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td><td>${r.gf}:${r.ga}</td><td>${r.gf-r.ga}</td><td class="points right">${r.points}</td></tr>`).join('')}</tbody></table></div><p class="fine">${esc(d.notice)}</p></div>`;}
 function adminPickEntry(playerId,round){return (state.admin?.picks||[]).find(p=>p.player_id===playerId&&Number(p.round_no)===Number(round))||null;}
