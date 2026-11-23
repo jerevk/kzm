@@ -1,7 +1,7 @@
 import * as vm from 'node:vm';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import worker,{processPush} from '../src/worker.js';import {fresh,rawSnapshot,ADMIN_PASSWORD,USER_PASSWORD} from './helpers.mjs';
-import {scorePick,cycleFor,rank,normalize} from '../src/rules.js';import {passwordHash} from '../src/auth.js';import {prepareSnapshot} from '../scripts/prepare-data.mjs';import {mapMatches,syncFootball,shouldPollFixture,testEspnSource} from '../src/football.js';
+import {scorePick,cycleFor,rank,normalize} from '../src/rules.js';import {passwordHash} from '../src/auth.js';import {prepareSnapshot} from '../scripts/prepare-data.mjs';import {mapMatches,syncFootball,shouldPollFixture,testEspnSource,parseRezultatiLive} from '../src/football.js';
 const tests=[];const check=(name,fn)=>test(name,fn);
 check('Scoring preserves home/away/draw/double rules',()=>{assert.equal(scorePick(3,true,2,1),3);assert.equal(scorePick(3,true,1,1),0);assert.equal(scorePick(3,true,0,1),0);assert.equal(scorePick(3,false,1,2),4);assert.equal(scorePick(3,false,1,1),1);assert.equal(scorePick(3,false,2,1),0);assert.equal(scorePick(3,false,1,2,true),8);assert.equal(scorePick(3,false,null,null),null);});
 check('All cycle boundaries and invalid rounds',()=>{for(const [n,c] of [[1,1],[10,1],[11,2],[19,2],[20,3],[28,3],[29,4],[38,4],[0,0],[39,0]])assert.equal(cycleFor(n),c);});
@@ -507,4 +507,37 @@ check('Round overview matches all-season standings and exposes only the logged-i
   assert.deepEqual(mine.data.overview,{place:actual.place,points:Number(actual.points)});
   assert.equal(Object.hasOwn(mine.data.overview,'name'),false);
  }finally{x.env.DB.close();}
+});
+
+
+check('Rezultati.com parser reads only matched Premier League live scores',()=>{
+ const html='<div id="score-data"><h4>ENGLESKA: Premier League <a>Tablica</a></h4>'
+  +'<span class="live">67&#39;</span>Brentford - Everton <a class="live" href="/utakmica/x/">2-1</a><br />'
+  +'<span>21:00</span>Arsenal - Chelsea <a class="sched"> - </a><br />'
+  +'<h4>HRVATSKA: SuperSport HNL</h4>'
+  +'<span class="live">80&#39;</span>Brentford - Everton <a class="live">9-9</a><br /></div>';
+ const rows=parseRezultatiLive(html,[{id:'f1',home_name:'Brentford',away_name:'Everton'},{id:'f2',home_name:'Arsenal',away_name:'Chelsea'}],123);
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].source,'Rezultati.com');
+ assert.equal(rows[0].home_score,2);
+ assert.equal(rows[0].away_score,1);
+ assert.equal(rows[0].live_minute,67);
+});
+check('Rezultati.com is consulted only when ESPN misses an active match',async()=>{
+ const x=await fresh(),previous=globalThis.fetch,urls=[];
+ try{
+  x.env.DB.sqlite.exec("UPDATE fixtures SET kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
+  globalThis.fetch=async url=>{
+   const u=String(url);urls.push(u);
+   if(u.includes('site.api.espn.com'))return Response.json({events:[]});
+   assert(u==='https://m.rezultati.com/');
+   return new Response('<h4>ENGLESKA: Premier League</h4><span class="live">67&#39;</span>Klub 1 - Klub 2 <a class="live">2-1</a><br /><h4>HRVATSKA: SuperSport HNL</h4>',{status:200,headers:{'Content-Type':'text/html'}});
+  };
+  const result=await syncFootball(x.env,false);
+  assert.equal(result.source,'Rezultati.com');
+  assert.equal(urls.length,2);
+  const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();
+  assert.deepEqual([row.home_score,row.away_score,row.status],[2,1,'IN_PLAY']);
+  assert.equal(x.env.DB.sqlite.prepare("SELECT value FROM meta WHERE key='live-minute:f1'").get().value,'67');
+ }finally{globalThis.fetch=previous;x.env.DB.close();}
 });
