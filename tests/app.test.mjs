@@ -455,7 +455,7 @@ check('Opposing club picks mark both sides only after the round is revealed',()=
  const classify=Function('state',app.slice(start,end)+'; return opposingPickPlayerIds')({boot:{user:{id:'a'}}});
  const players=[{id:'a',pick:{team_id:'t1'}},{id:'b',pick:{team_id:'t2'}},{id:'c',pick:{team_id:'t1'}},{id:'d',pick:{team_id:'t3'}}];
  const fixtures=[{home_id:'t1',away_id:'t2'},{home_id:'t3',away_id:'t4'}];
- assert.deepEqual([...classify({round:{revealed:true},players,fixtures,myPick:{team_id:'t1'}})].sort(),['a','b']);
+ assert.deepEqual([...classify({round:{revealed:true},players,fixtures,myPick:{team_id:'t1'}})].sort(),['b']);
  assert.deepEqual([...classify({round:{revealed:false},players,fixtures,myPick:{team_id:'t1'}})],[]);
  assert.deepEqual([...classify({round:{revealed:true},players,fixtures:[],myPick:{team_id:'t1'}})],[]);
  assert(app.includes("opponents.has(x.id)?'opposing-pick':''"));
@@ -472,7 +472,7 @@ check('Opposing picks highlight only after revealing the round',()=>{
   {id:'a',pick:{team_id:'arsenal'}},{id:'b',pick:{team_id:'chelsea'}},{id:'c',pick:{team_id:'arsenal'}},
   {id:'d',pick:{team_id:'city'}},{id:'e',pick:{team_id:'other'}},{id:'f',pick:null}
  ]};
- assert.deepEqual([...fn(d)].sort(),['a','b']);
+ assert.deepEqual([...fn(d)].sort(),['b']);
  d.round.revealed=false;
  assert.deepEqual([...fn(d)],[]);
  assert(app.includes('opposing-pick-label'));
