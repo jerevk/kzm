@@ -273,11 +273,38 @@ export async function handle(request,env){
   ]);return json({ok:true});
  }
  if(path==='/api/results'&&method==='GET')return json(await resultsData(env,u,url.searchParams.get('scope')));
+ if(path==='/api/archive'&&method==='GET'){
+  const season=integer(Number(url.searchParams.get('season')),2000,2100,'sezona');
+  assert(season<Number(env.SEASON||2026),'Aktualna sezona koristi zive rezultate.');
+  const scope=String(url.searchParams.get('scope')||'all');
+  assert(['all','1','2','3','4'].includes(scope),'Nepostojeci krug.');
+  const rows=await all(env,'SELECT player_name AS name,points,position AS place,source_note FROM season_archive_standings WHERE season=? AND scope=? ORDER BY position,player_name',season,scope);
+  return json({ok:true,season,scope,rows});
+ }
+ 
  if(path==='/api/stats'&&method==='GET'){const c=scopeRange(url.searchParams.get('scope'));return json({ok:true,rows:await all(env,'SELECT t.name,COUNT(*) AS count FROM picks p JOIN teams t ON t.id=p.team_id JOIN rounds r ON r.number=p.round_no WHERE p.round_no BETWEEN ? AND ? AND r.deadline<=unixepoch() GROUP BY t.id,t.name ORDER BY count DESC,t.name',c.from,c.to)});}
  if(path==='/api/mine'&&method==='GET')return json({ok:true,rows:await all(env,'SELECT round_no,cycle,team_name,is_double,base,points,home_score,away_score,match_status FROM pick_scores WHERE player_id=? ORDER BY round_no',u.id)});
  if(path==='/api/standings'&&method==='GET')return json(await standings(env));
  assert(path.startsWith('/api/admin/'),'Nepoznata adresa.',404);requireAdmin(u);
  if(path==='/api/admin/panel'&&method==='GET')return json(await adminPanel(env));
+ if(path==='/api/admin/archive'&&method==='POST'){
+  const b=await bodyJson(request),season=integer(Number(b.season),2000,2100,'sezona');
+  assert(season<Number(env.SEASON||2026),'Aktualna sezona nije arhiva.');
+  const scope=String(b.scope||'all');assert(['all','1','2','3','4'].includes(scope),'Nepostojeci krug.');
+  assert(Array.isArray(b.rows)&&b.rows.length>0&&b.rows.length<=200,'Potrebno je 1 do 200 redaka.');
+  const seen=new Set(),ops=[stmt(env,'DELETE FROM season_archive_standings WHERE season=? AND scope=?',season,scope)];
+  for(const row of b.rows){
+   const name=cleanName(row.name),key=normalize(name);
+   assert(!seen.has(key),'Dvostruko ime u tablici: '+name);seen.add(key);
+   const points=Number(row.points),place=integer(Number(row.place),1,500,'pozicija');
+   assert(Number.isFinite(points)&&points>=-10000&&points<=100000,'Neispravni bodovi.');
+   ops.push(stmt(env,'INSERT INTO season_archive_standings(season,scope,player_name,points,position,source_note) VALUES(?,?,?,?,?,?)',season,scope,name,points,place,String(b.sourceNote||'Fotografija arhivske tablice').slice(0,160)));
+  }
+  ops.push(stmt(env,"INSERT INTO audit(actor_id,action,target) VALUES(?,'archive-season',?)",u.id,season+':'+scope));
+  await env.DB.batch(ops);
+  return json({ok:true,season,scope,count:b.rows.length});
+ }
+ 
  if(path==='/api/admin/points-diagnostics'&&method==='GET'){
   const n=integer(Number(url.searchParams.get('round')),1,38,'kolo');
   const deadline=await first(env,'SELECT deadline FROM rounds WHERE number=?',n);
