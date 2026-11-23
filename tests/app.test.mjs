@@ -478,3 +478,20 @@ check('Opposing picks highlight only after revealing the round',()=>{
  assert(app.includes('opposing-pick-label'));
  assert(css.includes('tr.me.opposing-pick td'));
 });
+
+check('Mobile tabs and overview cards use real logged-in data without altering scoring',()=>{
+ const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
+ for(const tab of ['round','results','mine','more'])assert(html.includes('data-mobile-tab="'+tab+'"'));
+ assert(app.includes("function mobileRoundDashboard(d)"));
+ assert(app.includes("table?.rows?.find(x=>x.id===state.boot.user.id)"));
+ assert(app.includes("if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return ''"));
+ assert(app.includes("dashboard-deadline"));
+ assert(app.includes("if(tab==='more'){setMenu("));
+ assert(app.includes("state.scope='all';await load('results')"));
+ assert(css.includes('@media(max-width:720px)'));
+ assert(css.includes('.mobile-bottom-nav{position:fixed'));
+ assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
+ assert(html.includes('/app.js?v=20261123-mobile1'));
+});
