@@ -149,7 +149,7 @@ async function roundData(env,u,n){
   stmt(env,'SELECT t.id,t.name,t.base,t.color FROM teams t WHERE NOT EXISTS(SELECT 1 FROM picks p WHERE p.player_id=? AND p.cycle=? AND p.round_no<>? AND p.team_id=t.id) ORDER BY t.base,t.rowid',u.id,r.cycle,n),
   stmt(env,'SELECT COUNT(*) AS count FROM picks WHERE player_id=? AND cycle=? AND round_no<>? AND is_double=1',u.id,r.cycle,n),
   stmt(env,"SELECT value FROM meta WHERE key='player_order'"),
-  stmt(env,"SELECT u.id,u.name,COALESCE(SUM(s.points),0) AS points FROM players u LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN 1 AND 38 WHERE u.active=1 GROUP BY u.id,u.name")
+  stmt(env,"SELECT u.id,u.name,COALESCE(SUM(s.points),0) AS points FROM players u LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN ? AND ? WHERE u.active=1 GROUP BY u.id,u.name",scopeRange(String(r.cycle)).from,scopeRange(String(r.cycle)).to)
  ]);
  const pmap=new Map(data[2].results.map(p=>[p.player_id,p]));
  let savedOrder=[];try{savedOrder=JSON.parse(data[5].results?.[0]?.value||'[]');if(!Array.isArray(savedOrder))savedOrder=[];}catch{savedOrder=[];}
