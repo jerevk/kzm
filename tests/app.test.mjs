@@ -493,7 +493,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261123-fastest-source3'));
+ assert(html.includes('/app.js?v=20261123-mini-form2'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
@@ -598,4 +598,39 @@ check('A slower new goal beats a faster unchanged score',async()=>{
   const actual=x.env.DB.sqlite.prepare("SELECT home_score,away_score FROM fixtures WHERE id='f1'").get();
   assert.deepEqual([actual.home_score,actual.away_score],[1,1]);
  }finally{globalThis.fetch=old;x.env.DB.close();}
+});
+
+
+check('Current round mini standings come from current cycle and highlight only the logged-in player',async()=>{
+ const x=await fresh();
+ try{
+  const response=await x.call('/round/1',{cookie:x.userCookie});
+  assert.equal(response.status,200);
+  assert(Array.isArray(response.data.miniStandings));
+  assert(response.data.miniStandings.some(p=>p.mine&&p.id===x.userId));
+  assert(response.data.miniStandings.every(p=>Number.isFinite(p.place)&&Number.isFinite(p.points)));
+  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert(app.includes('function miniStandingsHtml(d)'));
+  assert(app.includes('dashboard-mini-ranking'));
+  assert(!app.includes('>Moje mjesto</span>'));
+ }finally{x.env.DB.close();}
+});
+check('Ranking form dots are scoped and settled, with purple only for a successful DOUBLE',async()=>{
+ const x=await fresh();
+ try{
+  const before=await x.call('/results?scope=1',{cookie:x.userCookie});
+  assert.equal(before.status,200);
+  assert(before.data.rows.every(p=>Array.isArray(p.form)));
+  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert(app.includes('function pickFormDots(form)'));
+  assert(app.includes("hit&&x.double?'double':hit?'hit':'miss'"));
+  const css=fs.readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
+  assert(css.includes('.ranking-form-double{background:#9047bd}'));
+  assert(css.includes('.ranking-form-miss{background:#e05261}'));
+  assert(css.includes('.ranking-form-hit{background:#22a866}'));
+  x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1;UPDATE fixtures SET status='FINISHED',home_score=2,away_score=0 WHERE id='f1';");
+  const after=await x.call('/results?scope=1',{cookie:x.userCookie});
+  assert.equal(after.status,200);
+  assert(after.data.rows.every(p=>p.form.every(f=>f.round>=1&&f.round<=10)));
+ }finally{x.env.DB.close();}
 });
