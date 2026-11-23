@@ -296,6 +296,7 @@ function renderAdmin(){
    <div><label>&nbsp;</label><button class="primary full" type="submit">SPREMI REGISTRACIJU</button></div>
   </form><p class="fine">Limit uključuje aktivne igrače i odobrene igrače koji čekaju početak sljedećeg kruga. Neodobreni zahtjevi ne zauzimaju mjesto i nikad ne daju trenutačan pristup igri.</p></div>`+
  registrationRequestCard(d)+
+ `<div class="card"><h2>Arhiva 2025/26</h2><p>Podaci iz dostavljenih fotografija: 1., 2., 3. i 4. krug te ukupni poredak. Uvoz ne mijenja bodove ni odabire aktualne sezone.</p><button type="button" class="primary" data-action="import-archive-2025">UVEZI PROŠLU SEZONU</button></div>`+
  `<div class="card"><div class="card-head"><h2>Ispravi pick igrača</h2><span class="pill pink">ADMIN ISPRAVAK</span></div>
   <p class="fine">Za pogrešno spremljene pickove. Radi i nakon zaključavanja kola. Pravilo jedne ekipe i jednog DOUBLE-a po krugu i dalje vrijedi, a svaka promjena ulazi u zapis promjena.</p>
   <form id="admin-pick-form" class="form-grid">
@@ -376,7 +377,24 @@ document.addEventListener('click',async e=>{
   if(b.dataset.pay){const p=state.admin.players.find(p=>p.id===b.dataset.pay),c=Number(b.dataset.payCycle),next=p.payments[c]===true?false:p.payments[c]===false?null:true;await api(`/admin/players/${p.id}/payment`,{cycle:c,paid:next});p.payments[c]=next;if(p.id===state.boot.user.id){const old=state.boot.payments.find(x=>x.cycle===c);if(old)old.paid=next===null?null:Number(next);else state.boot.payments.push({cycle:c,paid:next===null?null:Number(next)});nav();}renderAdmin();toast('Placanje spremljeno.');}
   if(b.dataset.active){const p=state.admin.players.find(p=>p.id===b.dataset.active),active=!p.active;if(!confirm(`${active?'Aktivirati':'Deaktivirati'} ${p.name}? Rezultati ostaju sacuvani.`))return;await api(`/admin/players/${p.id}/active`,{active});p.active=Number(active);renderAdmin();toast('Status spremljen.');}
   if(a==='toggle-picks'){const enabled=state.admin.settings.picks_enabled!=='1';if(!confirm(enabled?'Omoguciti odabire u produkcijskoj bazi?':'Zaustaviti spremanje odabira?'))return;await api('/admin/settings',{picksEnabled:enabled});state.admin.settings.picks_enabled=enabled?'1':'0';state.boot.settings.picks_enabled=enabled?'1':'0';nav();renderAdmin();toast('Postavka spremljena.');}
-  if(a==='sync'){toast('Dohvacam nogometni API...');const d=await api('/admin/sync',{});toast(`Spremljeno: ${d.fixtures} utakmica.`);state.boot=await api('/bootstrap');load('admin');}
+  if(a==='import-archive-2025'){
+  if(!confirm('Uvesti arhivske tablice iz slika za sezonu 2025/26? Ovo zamjenjuje postojece arhivske tablice te sezone, ali NE mijenja aktualnu sezonu.'))return;
+  await mutation(b,async()=>{
+   const res=await fetch('/archive-2025-26.json',{cache:'no-store'});
+   if(!res.ok)throw new Error('Arhivska datoteka nije dostupna.');
+   const archive=await res.json();
+   if(archive.season!==2025||!archive.scopes)throw new Error('Neispravna arhiva.');
+   for(const scope of ['1','2','3','4','all']){
+    const rows=archive.scopes[scope];
+    if(!Array.isArray(rows)||!rows.length)throw new Error('Nedostaje krug '+scope);
+    await api('/admin/archive',{season:2025,scope,sourceNote:archive.sourceNote,rows});
+   }
+   toast('Arhiva 2025/26 je spremljena: sva 4 kruga i ukupni poredak.');
+   state.selectedSeason=2025;state.archiveScope='all';await load('archive');
+  });
+  return;
+ }
+ if(a==='sync'){toast('Dohvacam nogometni API...');const d=await api('/admin/sync',{});toast(`Spremljeno: ${d.fixtures} utakmica.`);state.boot=await api('/bootstrap');load('admin');}
   if(a==='espn-test'){toast('Testiram ESPN iz Cloudflare Workera...');const d=await api('/admin/espn-test',{});toast(`ESPN radi · dohvaćeno događaja: ${d.events}.`);}
   if(a==='push-diagnostics'){toast('Provjeravam OneSignal pretplate...');const d=await api('/admin/push-diagnostics');state.pushDiagnostics=d.rows||[];renderAdmin();toast(`Aktivan push: ${d.withEnabledPush}/${d.activePlayers} igrača.`);}
   if(b.dataset.pushTestPlayer){const playerId=String(b.dataset.pushTestPlayer||'');const p=(state.admin?.players||[]).find(x=>String(x.id)===playerId);const d=await api('/admin/push-test-player',{playerId});toast(`Test push poslan: ${p?.name||d.player?.name||'igrač'}.`);}
