@@ -339,13 +339,13 @@ check('Automatic football sync requests only started fixtures, compares ESPN, an
  let r=await syncFootball(x.env,false);assert.equal(r.mode,'live-active');assert.deepEqual(r.requestedIds,[]);assert.equal(urls.length,2);assert(urls.some(u=>u.includes('site.api.espn.com')));assert(urls.some(u=>u.includes('m.rezultati.com')));
  const row=x.env.DB.sqlite.prepare("SELECT home_score,away_score,status FROM fixtures WHERE id='f1'").get();assert.equal(row.home_score,2);assert.equal(row.away_score,1);assert.equal(row.status,'FINISHED');
  const race=x.env.DB.sqlite.prepare("SELECT source,home_score,away_score FROM source_race WHERE fixture_id='f1' ORDER BY source").all();assert.deepEqual(race.map(z=>z.source),['ESPN']);assert(race.every(z=>z.home_score===2&&z.away_score===1));
- r=await syncFootball(x.env,false);assert.equal(r.skipped,true);assert(['idle','throttled'].includes(r.mode));assert.equal(urls.length,1);
+ r=await syncFootball(x.env,false);assert.equal(r.skipped,true);assert(['idle','throttled'].includes(r.mode));assert.equal(urls.length,2);
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
 
 check('ESPN request uses browser-like headers so the live scoreboard is not rejected as a bot',async()=>{const x=await fresh();const old=globalThis.fetch;let seen;try{
  x.env.DB.sqlite.exec("UPDATE fixtures SET api_id=NULL,kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
- globalThis.fetch=async(url,opts={})=>{seen={url:String(url),headers:new Headers(opts.headers||{})};return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'0',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in',completed:false}}}]}]});};
+ globalThis.fetch=async(url,opts={})=>{if(!String(url).includes('site.api.espn.com'))return new Response('<h4>ENGLESKA: Premier League</h4>',{status:200});seen={url:String(url),headers:new Headers(opts.headers||{})};return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'0',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in',completed:false}}}]}]});};
  const r=await syncFootball(x.env,false);assert.equal(r.source,'ESPN');assert(seen.url.includes('site.api.espn.com'));assert.match(seen.headers.get('user-agent')||'',/Mozilla\/5\.0/);assert.equal(seen.headers.get('accept'),'application/json, text/plain, */*');assert.equal(seen.headers.get('referer'),'https://www.espn.com/');
 }finally{globalThis.fetch=old;x.env.DB.close();}});
 
@@ -405,7 +405,7 @@ check('Finished round labels every picked zero-point player as Pena kola or Pene
 });
 
 check('Frontend auto refreshes visible data every 15 seconds and polls live sources only when needed',()=>{
- const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,15000)'));assert(app.includes("['round','results','mine','stats','standings','admin']"));assert(app.includes("if(adminRace||liveWindowOpen())"));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN radi neovisno o football-data rate limitu'));
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,15000)'));assert(app.includes("['round','results','mine','stats','standings','admin']"));assert(app.includes("if(adminRace||liveWindowOpen())"));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN i Rezultati.com uspoređuju se tijekom utakmica'));
 });
 
 check('Admin panel exposes source-race diagnostics and live fallback status',async()=>{const x=await fresh();try{
