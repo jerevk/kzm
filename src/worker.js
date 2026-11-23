@@ -148,7 +148,8 @@ async function roundData(env,u,n){
   stmt(env,`SELECT player_id,team_id,team_name,is_double,base,points,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores WHERE round_no=?`,n),
   stmt(env,'SELECT t.id,t.name,t.base,t.color FROM teams t WHERE NOT EXISTS(SELECT 1 FROM picks p WHERE p.player_id=? AND p.cycle=? AND p.round_no<>? AND p.team_id=t.id) ORDER BY t.base,t.rowid',u.id,r.cycle,n),
   stmt(env,'SELECT COUNT(*) AS count FROM picks WHERE player_id=? AND cycle=? AND round_no<>? AND is_double=1',u.id,r.cycle,n),
-  stmt(env,"SELECT value FROM meta WHERE key='player_order'")
+  stmt(env,"SELECT value FROM meta WHERE key='player_order'"),
+  stmt(env,"SELECT u.id,u.name,COALESCE(SUM(s.points),0) AS points FROM players u LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN 1 AND 38 WHERE u.active=1 GROUP BY u.id,u.name")
  ]);
  const pmap=new Map(data[2].results.map(p=>[p.player_id,p]));
  let savedOrder=[];try{savedOrder=JSON.parse(data[5].results?.[0]?.value||'[]');if(!Array.isArray(savedOrder))savedOrder=[];}catch{savedOrder=[];}
@@ -158,7 +159,9 @@ async function roundData(env,u,n){
   return ai-bi||Number(a.source_order||0)-Number(b.source_order||0);
  });
  const players=sourcePlayers.map(p=>{const pick=pmap.get(p.id);const visible=revealed||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
- return {ok:true,round:{...r,locked,revealed},fixtures:data[0].results,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,serverTime:now()};
+ const myStanding=rank(data[6].results.map(p=>({...p,points:Number(p.points||0)}))).find(p=>p.id===u.id);
+ const overview=myStanding?{place:myStanding.place,points:Number(myStanding.points||0)}:null;
+ return {ok:true,round:{...r,locked,revealed},fixtures:data[0].results,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,overview,serverTime:now()};
 }
 async function resultsData(env,u,scope){
  const c=scopeRange(scope);
