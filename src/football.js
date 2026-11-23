@@ -154,7 +154,10 @@ function espnRaceRows(raw,active,observedAt){
   const aname=away.team?.displayName||away.team?.name||away.team?.shortDisplayName||'';
   const f=byNames.get(teamKey(hname)+'|'+teamKey(aname));if(!f)continue;
   const hs=home.score==null||home.score===''?null:Number(home.score),as=away.score==null||away.score===''?null:Number(away.score);
-  out.push({fixture_id:f.id,source:'ESPN',home_name:f.home_name,away_name:f.away_name,home_score:Number.isFinite(hs)?hs:null,away_score:Number.isFinite(as)?as:null,status:espnStatus(c),observed_at:observedAt});
+  const clockRaw=String(event?.status?.displayClock||c?.status?.displayClock||event?.status?.type?.shortDetail||'').trim();
+  const clockMatch=clockRaw.match(/^(\\d{1,3})(?::\\d{2})?['’]?$/);
+  const minute=clockMatch&&Number(clockMatch[1])<=130?Number(clockMatch[1]):null;
+  out.push({fixture_id:f.id,source:'ESPN',home_name:f.home_name,away_name:f.away_name,home_score:Number.isFinite(hs)?hs:null,away_score:Number.isFinite(as)?as:null,status:espnStatus(c),live_minute:minute,observed_at:observedAt});
  }
  return out;
 }
@@ -235,6 +238,12 @@ async function applyLiveRows(env,s,rows,source){
   const key='live-terminal:'+row.fixture_id;
   if(terminal)ops.push(s('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',key,String(row.observed_at||Math.floor(Date.now()/1000))));
   else ops.push(s('DELETE FROM meta WHERE key=?',key));
+  const minuteKey='live-minute:'+row.fixture_id;
+  if(status==='IN_PLAY'&&Number.isInteger(row.live_minute)){
+   ops.push(s("INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",minuteKey,String(row.live_minute)));
+  }else{
+   ops.push(s('DELETE FROM meta WHERE key=?',minuteKey));
+  }
  }
  if(ops.length)await env.DB.batch(ops);
  if(useful.length)await env.DB.batch([
