@@ -493,7 +493,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261123-race-espn-rez2'));
+ assert(html.includes('/app.js?v=20261123-fastest-source3'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
@@ -563,5 +563,39 @@ check('Admin compares matching ESPN and Rezultati.com score snapshots for the sa
   assert.equal(admin.status,200);
   assert(admin.data.sourceRace.some(z=>z.source==='Rezultati.com'));
   assert.equal(typeof admin.data.sourceRaceRezultatiError,'string');
+ }finally{globalThis.fetch=old;x.env.DB.close();}
+});
+
+
+check('Fastest provider wins when both supply a newly changed result',async()=>{
+ const x=await fresh(),old=globalThis.fetch;
+ try{
+  x.env.DB.sqlite.exec("UPDATE fixtures SET kickoff=unixepoch()-60,status='IN_PLAY',home_score=0,away_score=0,manual_score=0 WHERE id='f1';");
+  globalThis.fetch=async url=>{
+   if(String(url).includes('site.api.espn.com')){await new Promise(done=>setTimeout(done,20));return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'1',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in'}}}]}]});}
+   if(String(url).includes('m.rezultati.com'))return new Response('<h4>ENGLESKA: Premier League</h4><span class="live">20&#39;</span>Klub 1 - Klub 2 <a class="live">2-0</a><br /><h4>HRVATSKA: SuperSport HNL</h4>',{status:200});
+   throw new Error('Unexpected fetch '+url);
+  };
+  const result=await syncFootball(x.env,false);
+  assert.equal(result.source,'Rezultati.com');
+  const actual=x.env.DB.sqlite.prepare("SELECT home_score,away_score FROM fixtures WHERE id='f1'").get();
+  assert.deepEqual([actual.home_score,actual.away_score],[2,0]);
+  const sources=x.env.DB.sqlite.prepare("SELECT source FROM source_race WHERE fixture_id='f1' ORDER BY source").all();
+  assert.deepEqual(sources.map(v=>v.source),['ESPN','Rezultati.com']);
+ }finally{globalThis.fetch=old;x.env.DB.close();}
+});
+check('A slower new goal beats a faster unchanged score',async()=>{
+ const x=await fresh(),old=globalThis.fetch;
+ try{
+  x.env.DB.sqlite.exec("UPDATE fixtures SET kickoff=unixepoch()-60,status='IN_PLAY',home_score=1,away_score=0,manual_score=0 WHERE id='f1';");
+  globalThis.fetch=async url=>{
+   if(String(url).includes('site.api.espn.com'))return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'1',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in'}}}]}]});
+   if(String(url).includes('m.rezultati.com')){await new Promise(done=>setTimeout(done,20));return new Response('<h4>ENGLESKA: Premier League</h4><span class="live">50&#39;</span>Klub 1 - Klub 2 <a class="live">1-1</a><br /><h4>HRVATSKA: SuperSport HNL</h4>',{status:200});}
+   throw new Error('Unexpected fetch '+url);
+  };
+  const result=await syncFootball(x.env,false);
+  assert.equal(result.source,'Rezultati.com');
+  const actual=x.env.DB.sqlite.prepare("SELECT home_score,away_score FROM fixtures WHERE id='f1'").get();
+  assert.deepEqual([actual.home_score,actual.away_score],[1,1]);
  }finally{globalThis.fetch=old;x.env.DB.close();}
 });
