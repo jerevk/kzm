@@ -323,3 +323,14 @@ dialog{border:0;border-radius:18px;padding:28px;max-width:430px;width:90vw;color
 @media(min-width:900px){.personal-stat-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:420px){.personal-stat-grid{grid-template-columns:1fr}.round-countdown{padding:14px}.countdown-value{font-size:22px}}
 
+
+/* Opposing selections are visible only within the revealed round's pick table. */
+tr.opposing-pick td, tr.me.opposing-pick td{background:#ffe4e8}
+tr.opposing-pick td:first-child, tr.me.opposing-pick td:first-child{box-shadow:inset 4px 0 0 #b20f32}
+tr.opposing-pick td:first-child strong{color:#a31332}
+.opposing-pick-label{display:inline-block;margin:4px 0 0 5px;padding:3px 6px;border:1px solid #ae4a50;border-radius:6px;background:#fde7e7;color:#9f1d22;font-size:10px;font-weight:900;letter-spacing:.03em;white-space:nowrap}
+.opposing-pick-note{margin:0 0 12px}
+:root[data-theme="dark"] tr.opposing-pick td,:root[data-theme="dark"] tr.me.opposing-pick td{background:#48232e}
+:root[data-theme="dark"] tr.opposing-pick td:first-child,:root[data-theme="dark"] tr.me.opposing-pick td:first-child{box-shadow:inset 4px 0 0 #ff8299}
+:root[data-theme="dark"] tr.opposing-pick td:first-child strong{color:#ffd4de}
+:root[data-theme="dark"] .opposing-pick-label{background:#662638;color:#ffd9e2;border-color:#cb748d}
