@@ -378,3 +378,10 @@ tr.opposing-pick td:first-child strong{color:#a31332}
  :root[data-theme="dark"] .mobile-bottom-nav button.active svg{stroke:#baffdb}
  :root[data-theme="dark"] .mobile-bottom-nav button:focus-visible{outline-color:var(--cyan)}
 }
+
+/* Current round overview: one visible deadline on mobile, personal tiles below round header. */
+@media(max-width:720px){
+ .round-countdown{display:none}
+ .mobile-dashboard{margin-top:0;margin-bottom:16px}
+ .dashboard-pick-tile{grid-column:1/-1;min-height:94px}
+}
