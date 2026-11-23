@@ -200,16 +200,19 @@ function doubleBadge(p,label='x2 DOUBLE'){
  return `<span class="double-result double-${outcome}" title="${attr(description)}" aria-label="${attr(accessibleLabel)}">${esc(label)}</span>`;
 }
 
-function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.away_id);return `<div class="fixture ${mine?'my-fixture':''}"><div class="home">${esc(f.home_name)}${clubBadge(f.home_name,'fixture-badge')}</div><div class="score">${score(f)}<small>${f.kickoff?esc(formatTime(f.kickoff)):esc(f.status)}</small></div><div class="away">${clubBadge(f.away_name,'fixture-badge')}${esc(f.away_name)}</div></div>`;}
+function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.away_id);const live=String(f.status)==='IN_PLAY';const timer=live?(Number.isInteger(f.live_minute)&&f.live_minute>=0?'LIVE '+f.live_minute+"'":'LIVE'):f.kickoff?formatTime(f.kickoff):f.status;return `<div class="fixture ${mine?'my-fixture':''}"><div class="home">${esc(f.home_name)}${clubBadge(f.home_name,'fixture-badge')}</div><div class="score">${score(f)}<small>${esc(timer)}</small></div><div class="away">${clubBadge(f.away_name,'fixture-badge')}${esc(f.away_name)}</div></div>`;}
 function pickedMatchVisual(p,fx){
  if(!fx)return '<p class="fine">Podaci o utakmici još nisu dostupni.</p>';
  const team=(name,id)=>`<div class="pick-match-club ${String(id)===String(p.team_id)?'is-picked':''}" title="${attr(name)}" aria-label="${attr(name)}${String(id)===String(p.team_id)?' - tvoj odabir':''}">${clubBadge(name,'pick-match-crest')||'<span class="pick-match-fallback">'+esc(name.slice(0,3).toUpperCase())+'</span>'}${String(id)===String(p.team_id)?'<span class="pick-match-chosen">✓</span>':''}</div>`;
  const date=fx.kickoff?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',day:'numeric',month:'short'}).format(new Date(Number(fx.kickoff)*1000)):'Termin nije poznat';
  const time=fx.kickoff?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(Number(fx.kickoff)*1000)):'–';
- const finished=fx.home_score!==null&&fx.home_score!==undefined&&fx.away_score!==null&&fx.away_score!==undefined;
+ const hasScore=fx.home_score!==null&&fx.home_score!==undefined&&fx.away_score!==null&&fx.away_score!==undefined;
+ const live=String(fx.status)==='IN_PLAY';
+ const finished=['FINISHED','AWARDED'].includes(String(fx.status));
+ const matchLabel=live?(Number.isInteger(fx.live_minute)&&fx.live_minute>=0?'LIVE '+fx.live_minute+"'":'LIVE'):finished?'KRAJ':hasScore?'REZULTAT':'POČETAK';
  return `<div class="pick-match-visual" aria-label="Utakmica ${attr(fx.home_name)} protiv ${attr(fx.away_name)}">
  <div class="pick-match-date">${esc(date)}</div>
- <div class="pick-match-row">${team(fx.home_name,fx.home_id)}<div class="pick-match-center"><span class="pick-match-time">${finished?esc(score(fx)):esc(time)}</span><span class="pick-match-vs">${finished?'REZULTAT':'POČETAK'}</span></div>${team(fx.away_name,fx.away_id)}</div>
+ <div class="pick-match-row">${team(fx.home_name,fx.home_id)}<div class="pick-match-center"><span class="pick-match-time">${hasScore?esc(score(fx)):esc(time)}</span><span class="pick-match-vs">${esc(matchLabel)}</span></div>${team(fx.away_name,fx.away_id)}</div>
  <div class="pick-match-caption"><span class="pick-match-dot"></span>Označeni grb je tvoj odabir</div>
  </div>`;
 }
