@@ -21,10 +21,10 @@
       document.documentElement.style.colorScheme=dark?'dark':'light';
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=20261123-rivals1">
+  <link rel="stylesheet" href="/style.css?v=20261123-mobile1">
   <link rel="manifest" href="/manifest.webmanifest">
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script type="module" src="/app.js?v=20261123-rivals1"></script>
+  <script type="module" src="/app.js?v=20261123-mobile1"></script>
 </head>
 <body>
   <div id="loading" class="loading-screen">
@@ -138,6 +138,13 @@
     </aside>
 
     <main class="content"><div id="main"></div></main>
+    <nav class="mobile-bottom-nav" aria-label="Glavna navigacija">
+      <button type="button" data-mobile-tab="round" aria-label="Aktualno kolo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Kolo</span></button>
+      <button type="button" data-mobile-tab="results" aria-label="Ukupna tablica"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21V10H3v11M14 21V3h-4v18M21 21v-9h-4v9M2 21h20"/></svg><span>Tablica</span></button>
+      <button type="button" data-mobile-tab="mine" aria-label="Moji odabiri i statistika"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2c0-4 3-6 8-6s8 2 8 6v2"/></svg><span>Moji</span></button>
+      <button type="button" data-mobile-tab="more" aria-label="Otvori izbornik" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>Više</span></button>
+    </nav>
+
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
