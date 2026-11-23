@@ -6,7 +6,7 @@ import {calculatePersonalStats} from './js/personal-stats.js?v=20261123-player1'
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
-const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[]};
+const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[],dashboard:null};
 let roundCountdownTimer=null,roundCountdownContext=null;
 function stopRoundCountdown(){if(roundCountdownTimer!==null)clearInterval(roundCountdownTimer);roundCountdownTimer=null;}
 function rememberRoundClock(d){
@@ -23,6 +23,7 @@ function updateRoundCountdown(){
  const noteText=countdown.status==='unset'?'Odabiri čekaju postavljanje roka.':d.myPick?'Tvoj je odabir spremljen.':countdown.status==='locked'?'Nema spremljenog odabira.':'Još nisi spremio odabir.';
  if(title&&title.textContent!==titleText)title.textContent=titleText;
  if(value&&value.textContent!==countdown.label)value.textContent=countdown.label;
+ const dashboardClock=$('#dashboard-deadline');if(dashboardClock){const label=countdown.status==='open'?countdown.label:countdown.status==='unset'?'Nema roka':'Zaključano';if(dashboardClock.textContent!==label)dashboardClock.textContent=label;dashboardClock.closest('.dashboard-tile')?.setAttribute('data-urgency',countdown.urgency);}
  if(note&&note.textContent!==noteText)note.textContent=noteText;
  if(countdown.status==='locked'&&!d.round.locked){
   document.querySelectorAll('#pick-form input, #pick-form button, [data-action="change-pick"]').forEach(control=>{control.disabled=true;});
@@ -113,7 +114,7 @@ async function loadLoginPlayers(){
  }catch(e){select.innerHTML='<option value="">Ne mogu učitati igrače</option>';state.registration=null;renderRegistrationEntry();}
 }
 function showLogin(){state.boot=null;state.sequence++;stopRoundCountdown();roundCountdownContext=null;navigation.stop();rememberAdminPanels(null);closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
-function setMenu(open){$('#nav').classList.toggle('open',open);const v=$('#veil');v.hidden=!open;v.classList.toggle('open',open);}
+function setMenu(open){$('#nav').classList.toggle('open',open);const v=$('#veil');v.hidden=!open;v.classList.toggle('open',open);const more=$('[data-mobile-tab="more"]');if(more){more.classList.toggle('active',open);more.setAttribute('aria-expanded',String(open));}}
 function nav(){
  const archived=Number(state.selectedSeason)!==Number(state.boot.season);
  const seasonSelect=$('#season-select');if(seasonSelect)seasonSelect.value=String(state.selectedSeason);
@@ -123,6 +124,7 @@ function nav(){
  $('#cycles').innerHTML=state.boot.cycles.map(c=>`<button data-cycle="${c.id}" class="${state.cycle===c.id?'active':''}">${c.id}. krug<small>Kola ${c.from}-${c.to}</small></button>`).join('');
  $('#rounds').innerHTML=state.boot.rounds.filter(r=>r.cycle===state.cycle).map(r=>`<button title="${r.locked?'Zakljucano':'Otvoreno'}" data-round="${r.number}" class="${state.round===r.number?'active':''}"><span class="round-status ${r.number===roundNow?'current':r.locked?'closed':'open'}"></span><span>${r.number}</span></button>`).join('');
  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));
+ document.querySelectorAll('[data-mobile-tab]').forEach(b=>{const tab=b.dataset.mobileTab,selected=tab==='more'?$('#nav').classList.contains('open'):tab==='round'?state.view==='round':tab===state.view;b.classList.toggle('active',selected);if(selected)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  const admin=!!state.boot.user.admin;$('#admin-nav').hidden=!admin;$('#admin-section').hidden=!admin;
  const notices=[];
  if(state.boot.settings.picks_enabled!=='1')notices.push('SPREMANJE ODABIRA JE TRENUTNO ZAUSTAVLJENO');
@@ -160,7 +162,7 @@ async function load(view=state.view,silent=false,historyMode='push'){
  try{let data;
   if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
-  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.roundData=data;rememberRoundClock(data);renderRound(data);}
+  if(view==='round'){const [round,table]=await Promise.all([api('/round/'+state.round),api('/results?scope=all').catch(()=>null)]);if(seq!==state.sequence)return;data=round;state.dashboard=table?.rows?.find(x=>x.id===state.boot.user.id)||null;state.roundData=data;rememberRoundClock(data);renderRound(data);}
   if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence)return;renderResults(data);}
   if(view==='mine'){data=await api('/mine');if(seq!==state.sequence)return;renderMine(data);}
   if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence)return;renderStats(data);}
@@ -285,6 +287,20 @@ function opposingPickPlayerIds(d){
  }
  return ids;
 }
+function mobileRoundDashboard(d){
+ if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return '';
+ const me=state.dashboard,points=me?Number(me.points||0):null,place=me?.place??null;
+ const pick=d.myPick,pickName=pick?.team_name||'Nije odabrano',clock=getRoundCountdown(d.round.deadline,roundCountdownContext?.now?.()??Math.floor(Date.now()/1000));
+ const countdown=clock.status==='open'?clock.label:clock.status==='unset'?'Nema roka':'Zaključano';
+ return `<section class="mobile-dashboard" aria-label="Moj pregled">
+ <div class="dashboard-heading"><div><span class="dashboard-kicker">MOJ PREGLED</span><h2>Aktualno kolo <span>${Number(d.round.number)}</span></h2></div><span class="dashboard-cycle">${Number(d.round.cycle)}. krug</span></div>
+ <div class="dashboard-tiles">
+ <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">Ukupna tablica</span></div>
+ <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">Cijela sezona</span></div>
+ <div class="dashboard-tile ${pick?'':'dashboard-needs-pick'}"><span class="dashboard-label">Moj odabir</span><strong class="dashboard-value dashboard-pick">${pick?clubBadge(pickName,'sm')+esc(pickName):'Nije odabrano'}${pick?.is_double?' <span class="dashboard-double">×2</span>':''}</strong><span class="dashboard-caption">${pick?'Odabir je spremljen':d.round.locked?'Rok je istekao':'Odaberi ekipu ispod'}</span></div>
+ <div class="dashboard-tile dashboard-clock-tile" data-urgency="${esc(clock.urgency)}"><span class="dashboard-label">Do zaključavanja</span><strong class="dashboard-value dashboard-time" id="dashboard-deadline">${esc(countdown)}</strong><span class="dashboard-caption">${esc(formatTime(d.round.deadline))}</span></div>
+ </div></section>`;
+}
 function renderRound(d){
  const p=d.myPick,disabled=d.round.locked||state.boot.settings.picks_enabled!=='1';
  let pick='';
@@ -311,7 +327,7 @@ function renderRound(d){
  right+=`<div class="card"><div class="card-head"><h2>Nisu birali</h2><span class="pill pink">${notPicked.length}</span></div><div class="not-picked">${notPicked.map(x=>`<span>${esc(x.name)}</span>`).join('')||'<div class="green">Svi su odabrali ✓</div>'}</div></div>`;
  right+=renderRoundPickStats(d);
 
- $('#main').innerHTML=hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
+ $('#main').innerHTML=mobileRoundDashboard(d)+hero('Kolo '+d.round.number,'Rok: '+formatTime(d.round.deadline),d.round.locked?'ZAKLJUČANO':'OTVORENO')+roundCountdownCard()+`<div class="grid"><div><div class="card"><div class="card-head"><h2>Tvoj odabir</h2><span class="badge ${d.round.locked?'lock':'open'}">${d.round.locked?'ZAKLJUČANO':'OTVORENO'}</span></div>${pick}</div><div class="card"><div class="card-head"><h2>Raspored</h2><span class="pill">${d.fixtures.length} utakmica</span></div><div class="fixtures">${fixtures||empty('Raspored nije uvezen.')}</div></div></div><div>${right}</div></div>`;
  startRoundCountdown(d);
  if(roundComplete(d))setTimeout(()=>showRoundWinnerPopup(d),80);
 }
@@ -570,6 +586,7 @@ document.addEventListener('click',async e=>{
  if(b.dataset.round){state.round=Number(b.dataset.round);load(state.view==='system'?'system':'round');return;}
  if(b.dataset.pickTeam){const hidden=$('#pick-team'),label=$('#team-picker-current'),menu=$('#team-picker-menu');hidden.value=b.dataset.pickTeam;label.innerHTML=clubBadge(b.dataset.pickName,'sm')+`<span>${esc(b.dataset.pickName)}</span>`;menu.querySelectorAll('.team-picker-option').forEach(x=>x.classList.toggle('selected',x===b));menu.classList.remove('open');return;}
  const a=b.dataset.action;
+ if(b.dataset.mobileTab){const tab=b.dataset.mobileTab;if(tab==='more'){setMenu(!$('#nav').classList.contains('open'));return;}if(tab==='round'){state.selectedSeason=Number(state.boot.season);state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;await load('round');return;}if(tab==='results'){state.selectedSeason=Number(state.boot.season);state.scope='all';await load('results');return;}if(tab==='mine'){state.selectedSeason=Number(state.boot.season);await load('mine');return;}}
  if(a==='back'){navigation.back();return;}
  if(a==='show-registration'){const f=$('#registration-form');if(f&&!b.disabled){f.hidden=false;f.elements.name.focus();}return;}
  if(a==='cancel-registration'){const f=$('#registration-form');if(f){f.reset();f.hidden=true;}const x=$('#registration-error');if(x)x.textContent='';return;}
