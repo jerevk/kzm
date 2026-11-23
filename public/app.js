@@ -282,8 +282,12 @@ function opposingPickPlayerIds(d){
   const home=byTeam.get(String(fixture.home_id))||[];
   const away=byTeam.get(String(fixture.away_id))||[];
   if(!home.length||!away.length)continue;
-  for(const id of home)ids.add(id);
-  for(const id of away)ids.add(id);
+  // Rival highlights are private: only show opponents of the signed-in player's own pick.
+  if(!d.myPick||![String(fixture.home_id),String(fixture.away_id)].includes(String(d.myPick.team_id)))continue;
+  const myTeam=String(d.myPick.team_id);
+  const opponents=myTeam===String(fixture.home_id)?away:home;
+  for(const id of opponents)ids.add(id);
+  ids.add(state.boot.user.id);
  }
  return ids;
 }
@@ -320,7 +324,7 @@ function renderRound(d){
  if(d.round.revealed){
   const opponents=opposingPickPlayerIds(d);
   const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''} ${opponents.has(x.id)?'opposing-pick':''}"><td><strong>${esc(x.name)}</strong>${opponents.has(x.id)?' <span class="opposing-pick-label" title="Igra protiv ekipe koju je odabrao drugi igrač">PROTIV</span>':''}</td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?doubleBadge(x.pick):'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
-  right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><p class="fine opposing-pick-note">Crveno su označeni igrači koji su odabrali suprotne ekipe iz iste utakmice.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
+  right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><p class="fine opposing-pick-note">Crveno su označeni samo tvoji izravni suparnici u ovom kolu. Ostali igrači ne vide te oznake.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
   right+=renderRoundTopScorers(d);
   right+=renderRoundPenas(d);
  }
@@ -580,13 +584,13 @@ document.addEventListener('click',async e=>{
   if(view==='archive'){if(Number(state.selectedSeason)===currentSeason)state.selectedSeason=currentSeason-1;state.archiveScope='all';await load('archive');return;}
   if(view==='rules'){await load('rules');return;}
   if(Number(state.selectedSeason)!==currentSeason){await load('archive');return;}
-  if(view==='results')state.scope=String(state.cycle);await load(view);return;
+  if(view==='results'||view==='mine')state.scope=String(state.boot.rounds.find(r=>Number(r.number)===Number(state.boot.currentRound))?.cycle||1);await load(view);return;
  }
  if(b.dataset.cycle){state.cycle=Number(b.dataset.cycle);state.round=state.boot.rounds.find(r=>r.cycle===state.cycle).number;load(state.view==='system'?'system':'round');return;}
  if(b.dataset.round){state.round=Number(b.dataset.round);load(state.view==='system'?'system':'round');return;}
  if(b.dataset.pickTeam){const hidden=$('#pick-team'),label=$('#team-picker-current'),menu=$('#team-picker-menu');hidden.value=b.dataset.pickTeam;label.innerHTML=clubBadge(b.dataset.pickName,'sm')+`<span>${esc(b.dataset.pickName)}</span>`;menu.querySelectorAll('.team-picker-option').forEach(x=>x.classList.toggle('selected',x===b));menu.classList.remove('open');return;}
  const a=b.dataset.action;
- if(b.dataset.mobileTab){const tab=b.dataset.mobileTab;if(tab==='more'){setMenu(!$('#nav').classList.contains('open'));return;}if(tab==='round'){state.selectedSeason=Number(state.boot.season);state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;await load('round');return;}if(tab==='results'){state.selectedSeason=Number(state.boot.season);state.scope='all';await load('results');return;}if(tab==='mine'){state.selectedSeason=Number(state.boot.season);await load('mine');return;}}
+ if(b.dataset.mobileTab){const tab=b.dataset.mobileTab;if(tab==='more'){setMenu(!$('#nav').classList.contains('open'));return;}if(tab==='round'){state.selectedSeason=Number(state.boot.season);state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;await load('round');return;}if(tab==='results'){state.selectedSeason=Number(state.boot.season);state.scope=String(state.boot.rounds.find(r=>Number(r.number)===Number(state.boot.currentRound))?.cycle||1);await load('results');return;}if(tab==='mine'){state.selectedSeason=Number(state.boot.season);state.scope=String(state.boot.rounds.find(r=>Number(r.number)===Number(state.boot.currentRound))?.cycle||1);await load('mine');return;}}
  if(a==='back'){navigation.back();return;}
  if(a==='show-registration'){const f=$('#registration-form');if(f&&!b.disabled){f.hidden=false;f.elements.name.focus();}return;}
  if(a==='cancel-registration'){const f=$('#registration-form');if(f){f.reset();f.hidden=true;}const x=$('#registration-error');if(x)x.textContent='';return;}
