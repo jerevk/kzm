@@ -13,7 +13,7 @@ async function pushRelease(env,key){await stmt(env,"DELETE FROM meta WHERE key=?
 async function allActivePlayerIds(env){return (await all(env,'SELECT id FROM players WHERE active=1')).map(x=>x.id);}
 async function roundFinished(env,n){const x=await first(env,"SELECT COUNT(*) AS total,SUM(CASE WHEN status IN('FINISHED','AWARDED') AND home_score IS NOT NULL AND away_score IS NOT NULL THEN 1 ELSE 0 END) AS done FROM fixtures WHERE round_no=?",n);return Number(x?.total||0)>=10&&Number(x?.done||0)===Number(x?.total||0);}
 async function roundWinners(env,n){const rows=await all(env,'SELECT player_id,player_name,points FROM pick_scores WHERE round_no=? AND points IS NOT NULL',n);if(!rows.length)return null;const max=Math.max(...rows.map(x=>Number(x.points)));return {points:max,rows:rows.filter(x=>Number(x.points)===max)};}
-async function cycleWinners(env,cycle){const c=scopeRange(String(cycle));const rows=rank(await all(env,`SELECT u.id,u.name,u.active,COALESCE(SUM(s.points),0) AS points FROM players u LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN ? AND ? WHERE u.active=1 OR NOT EXISTS(SELECT 1 FROM meta m WHERE m.key='registration:request:'||u.id) GROUP BY u.id,u.name,u.active`,c.from,c.to));const win=rows.filter(x=>x.place===1);return win.length?{points:Number(win[0].points),rows:win}:null;}
+async function cycleWinners(env,cycle){const c=scopeRange(String(cycle));const rows=rank(await all(env,`SELECT u.id,u.name,u.active,COALESCE(SUM(s.points),0) AS points FROM players u LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN ? AND ? WHERE u.active=1 GROUP BY u.id,u.name,u.active`,c.from,c.to));const win=rows.filter(x=>x.place===1);return win.length?{points:Number(win[0].points),rows:win}:null;}
 async function pushEvent(env,key,ids,title,message){if(!ids.length){await stmt(env,"INSERT OR IGNORE INTO meta(key,value) VALUES(?,'none')",key).run();return;}if(!await pushClaim(env,key))return;try{await pushSend(env,ids,title,message,key);await pushDone(env,key);}catch(e){await pushRelease(env,key);throw e;}}
 const matchStateKey=id=>'push:matchstate:'+String(id);
 const scoreNo=v=>v===null||v===undefined||v===''?0:Number(v);
@@ -143,7 +143,7 @@ async function roundData(env,u,n){
  const locked=r.deadline===null||r.deadline<=now();
  const data=await env.DB.batch([
   stmt(env,'SELECT f.*,h.name AS home_name,a.name AS away_name FROM fixtures f JOIN teams h ON h.id=f.home_id JOIN teams a ON a.id=f.away_id WHERE round_no=? ORDER BY kickoff,f.id',n),
-  stmt(env,'SELECT rowid AS source_order,id,name,active FROM players WHERE active=1 OR id IN(SELECT player_id FROM picks WHERE round_no=?) ORDER BY rowid',n),
+  stmt(env,'SELECT rowid AS source_order,id,name,active FROM players WHERE active=1 ORDER BY rowid'),
   stmt(env,'SELECT player_id,team_id,team_name,is_double,base,points FROM pick_scores WHERE round_no=?',n),
   stmt(env,'SELECT t.id,t.name,t.base,t.color FROM teams t WHERE NOT EXISTS(SELECT 1 FROM picks p WHERE p.player_id=? AND p.cycle=? AND p.round_no<>? AND p.team_id=t.id) ORDER BY t.base,t.rowid',u.id,r.cycle,n),
   stmt(env,'SELECT COUNT(*) AS count FROM picks WHERE player_id=? AND cycle=? AND round_no<>? AND is_double=1',u.id,r.cycle,n),
@@ -156,14 +156,14 @@ async function roundData(env,u,n){
   const ak=normalize(a.name),bk=normalize(b.name),ai=orderMap.has(ak)?orderMap.get(ak):Number.MAX_SAFE_INTEGER,bi=orderMap.has(bk)?orderMap.get(bk):Number.MAX_SAFE_INTEGER;
   return ai-bi||Number(a.source_order||0)-Number(b.source_order||0);
  });
- const players=sourcePlayers.filter(p=>locked||p.active===1).map(p=>{const pick=pmap.get(p.id);const visible=locked||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
+ const players=sourcePlayers.map(p=>{const pick=pmap.get(p.id);const visible=locked||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
  return {ok:true,round:{...r,locked},fixtures:data[0].results,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,serverTime:now()};
 }
 async function resultsData(env,u,scope){
  const c=scopeRange(scope);
  const rows=await all(env,`SELECT u.id,u.name,u.active,COALESCE(SUM(s.points),0) AS points FROM players u
  LEFT JOIN pick_scores s ON s.player_id=u.id AND s.round_no BETWEEN ? AND ?
- WHERE u.active=1 OR NOT EXISTS(SELECT 1 FROM meta m WHERE m.key='registration:request:'||u.id)
+ WHERE u.active=1
  GROUP BY u.id,u.name,u.active`,c.from,c.to);
  const pays=await all(env,'SELECT player_id,cycle,paid FROM payments');
  const doubles=await all(env,'SELECT p.player_id,p.cycle,p.round_no FROM picks p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND(r.deadline<=unixepoch() OR p.player_id=?) ORDER BY p.round_no',c.from,c.to,u.id);
