@@ -493,7 +493,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261123-mine-order2'));
+ assert(html.includes('/app.js?v=20261123-live-minute2'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
