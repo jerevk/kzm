@@ -344,29 +344,24 @@ export async function syncFootball(env,manual=false){
   await s("INSERT INTO meta(key,value) VALUES('last_live_poll',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)).run();
 
   await ensureSourceRace(env);
-  // ESPN first; query Rezultati.com only for currently active fixtures ESPN cannot update.
-  let espnRows=[],espnApplied=new Set(),rezultatiRows=[],rezultatiApplied=new Set(),espnError='';
-  try{
-   const observed=await fetchEspn(now);
-   espnRows=espnRaceRows(observed,active,Math.floor(Date.now()/1000));
+  // Measure both providers for every active fixture. Only ESPN results have first priority in D1.
+  // The comparison records each provider's first observation of the same score.
+  let espnRows=[],espnApplied=new Set(),rezultatiRows=[],rezultatiApplied=new Set(),espnError='',rezultatiError='';
+  const [espnResponse,rezultatiResponse]=await Promise.allSettled([fetchEspn(now),fetchRezultati()]);
+  if(espnResponse.status==='fulfilled'){
+   espnRows=espnRaceRows(espnResponse.value,active,Math.floor(Date.now()/1000));
    await recordRaceRows(env,espnRows);
    espnApplied=await applyLiveRows(env,s,espnRows,'ESPN');
-   await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnRows.length?'':'ESPN nije povezao aktivnu utakmicu.').run();
-  }catch(e){
-   espnError=String(e.message||e).slice(0,300);
-   await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnError).run();
-  }
-  const remaining=active.filter(f=>!espnApplied.has(String(f.id)));
-  let rezultatiError='';
-  if(remaining.length){
-   try{
-    const html=await fetchRezultati();
-    rezultatiRows=parseRezultatiLive(html,remaining,Math.floor(Date.now()/1000));
-    await recordRaceRows(env,rezultatiRows);
-    rezultatiApplied=await applyLiveRows(env,s,rezultatiRows,'Rezultati.com');
-    if(!rezultatiRows.length)rezultatiError='Rezultati.com nije pronašao odgovarajuću utakmicu Premier League.';
-   }catch(e){rezultatiError=String(e.message||e).slice(0,300);}
-  }
+   if(!espnRows.length)espnError='ESPN nije povezao aktivnu utakmicu.';
+  }else espnError=String(espnResponse.reason?.message||espnResponse.reason).slice(0,300);
+  await s("INSERT INTO meta(key,value) VALUES('source_race_espn_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",espnError).run();
+  if(rezultatiResponse.status==='fulfilled'){
+   rezultatiRows=parseRezultatiLive(rezultatiResponse.value,active,Math.floor(Date.now()/1000));
+   await recordRaceRows(env,rezultatiRows);
+   const remaining=rezultatiRows.filter(row=>!espnApplied.has(String(row.fixture_id)));
+   rezultatiApplied=await applyLiveRows(env,s,remaining,'Rezultati.com');
+   if(!rezultatiRows.length)rezultatiError='Rezultati.com nije pronašao odgovarajuću aktivnu utakmicu Premier League.';
+  }else rezultatiError=String(rezultatiResponse.reason?.message||rezultatiResponse.reason).slice(0,300);
   await s("INSERT INTO meta(key,value) VALUES('source_race_rezultati_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",rezultatiError).run();
   const applied=new Set([...espnApplied,...rezultatiApplied]);
   const source=espnApplied.size&&rezultatiApplied.size?'ESPN+Rezultati.com':espnApplied.size?'ESPN':rezultatiApplied.size?'Rezultati.com':'none';
