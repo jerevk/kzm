@@ -385,3 +385,29 @@ tr.opposing-pick td:first-child strong{color:#a31332}
  .mobile-dashboard{margin-top:0;margin-bottom:16px}
  .dashboard-pick-tile{grid-column:1/-1;min-height:94px}
 }
+
+/* Compact personal pick, with crests and local match time */
+.pick-status-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:22px}
+.pick-status-label{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--ink);font-size:13px}
+.pick-status-right{display:flex;align-items:center;gap:9px}
+.pick-saved-indicator,.pick-match-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#24825c;flex:none}
+.pick-earned-points{font-weight:900;font-size:17px;color:var(--pl)}
+.pick-earned-points small{font-size:11px;font-weight:650;color:var(--muted)}
+.pick-match-visual{border:1px solid var(--line);border-radius:18px;background:linear-gradient(155deg,var(--white),var(--paper));padding:16px 14px 12px}
+.pick-match-date{text-align:center;text-transform:uppercase;letter-spacing:.09em;font-size:10px;font-weight:850;color:var(--muted)}
+.pick-match-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,1.1fr) minmax(0,1fr);align-items:center;justify-items:center;gap:6px;margin:10px auto 9px;max-width:330px}
+.pick-match-club{position:relative;display:flex;align-items:center;justify-content:center;width:78px;height:78px;max-width:100%;border-radius:18px;background:var(--white);border:1px solid var(--line);box-shadow:0 4px 14px rgba(30,12,45,.06)}
+.pick-match-club.is-picked{border:2px solid var(--pl);box-shadow:0 0 0 3px rgba(100,45,118,.12),0 4px 14px rgba(30,12,45,.08)}
+.pick-match-club .club-badge.pick-match-crest{width:52px;height:52px;margin:0;object-fit:contain}
+.pick-match-fallback{font-size:16px;font-weight:900;color:var(--pl)}
+.pick-match-chosen{position:absolute;bottom:-7px;right:-7px;background:var(--pl);color:#fff;border:2px solid var(--white);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900}
+.pick-match-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap}
+.pick-match-time{font-size:23px;letter-spacing:-.04em;line-height:1.1;font-weight:950;color:var(--ink);font-variant-numeric:tabular-nums}
+.pick-match-vs{font-size:9px;letter-spacing:.08em;font-weight:800;color:var(--muted)}
+.pick-match-caption{display:flex;justify-content:center;align-items:center;gap:6px;font-size:10px;color:var(--muted)}
+.pick-match-caption .pick-match-dot{background:var(--pl)}
+.pick-change-button{margin-top:2px}
+@media(max-width:420px){.pick-match-club{width:66px;height:66px;border-radius:16px}.pick-match-club .club-badge.pick-match-crest{width:46px;height:46px}.pick-match-time{font-size:21px}.pick-match-visual{padding:14px 9px 10px}}
+:root[data-theme="dark"] .pick-match-visual{background:linear-gradient(155deg,#211e30,#292337)}
+:root[data-theme="dark"] .pick-match-club{background:#302a3b;border-color:#50445d}
+:root[data-theme="dark"] .pick-match-club.is-picked{border-color:#bb8acf;box-shadow:0 0 0 3px rgba(187,138,207,.14)}
