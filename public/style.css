@@ -490,4 +490,4 @@ tr.opposing-pick td:first-child strong{color:#a31332}
 }
 
 /* Bottom navigation already has Kolo: hide redundant top home control on mobile. */
-@media(max-width:720px){.topbar [data-action="home"]{display:none}}
+@media(max-width:720px){.topbar [data-action="home"],.topbar [data-action="menu"]{display:none}}
