@@ -485,7 +485,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  const css=fs.readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
  for(const tab of ['round','results','mine','more'])assert(html.includes('data-mobile-tab="'+tab+'"'));
  assert(app.includes("function mobileRoundDashboard(d)"));
- assert(app.includes("table?.rows?.find(x=>x.id===state.boot.user.id)"));
+ assert(app.includes('state.dashboard=data.overview||null'));
  assert(app.includes("if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return ''"));
  assert(app.includes("dashboard-deadline"));
  assert(app.includes("if(tab==='more'){setMenu("));
@@ -494,4 +494,17 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
  assert(html.includes('/app.js?v=20261123-mobile1'));
+});
+
+check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
+ const x=await fresh();
+ try{
+  await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:false}});
+  const mine=await x.call('/round/1',{cookie:x.userCookie});
+  const table=await x.call('/results?scope=all',{cookie:x.userCookie});
+  const actual=table.data.rows.find(p=>p.id===x.userId);
+  assert.equal(mine.status,200);
+  assert.deepEqual(mine.data.overview,{place:actual.place,points:Number(actual.points)});
+  assert.equal(Object.hasOwn(mine.data.overview,'name'),false);
+ }finally{x.env.DB.close();}
 });
