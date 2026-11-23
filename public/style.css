@@ -491,3 +491,35 @@ tr.opposing-pick td:first-child strong{color:#a31332}
 
 /* Bottom navigation already has Kolo: hide redundant top home control on mobile. */
 @media(max-width:720px){.topbar [data-action="home"],.topbar [data-action="menu"]{display:none}}
+
+/* Current-cycle neighborhood instead of the single "Moje mjesto" tile. */
+@media(max-width:720px){
+ .dashboard-mini-ranking{grid-column:1/-1;padding:12px 13px;gap:7px}
+ .mini-ranking-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+ .mini-ranking-hint{font-size:10px;color:var(--muted)}
+ .mini-ranking-list{display:grid;gap:3px}
+ .mini-ranking-row{display:grid;grid-template-columns:26px minmax(0,1fr) 36px;align-items:center;gap:7px;min-height:27px;padding:4px 7px;border-radius:8px;font-size:12px}
+ .mini-ranking-place{color:var(--muted);font-weight:750;font-variant-numeric:tabular-nums}
+ .mini-ranking-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:750}
+ .mini-ranking-points{text-align:right;font-variant-numeric:tabular-nums}
+ .mini-ranking-row.is-me{background:#e3f5e8;color:#165d3e}
+ .mini-ranking-you{font-size:9px;font-weight:950;margin-left:4px;letter-spacing:.04em}
+ .dashboard-points-tile{grid-column:1/-1;min-height:66px;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:8px}
+ .dashboard-points-tile .dashboard-value{grid-column:2;grid-row:1/3;text-align:right}
+ .dashboard-points-tile .dashboard-caption{grid-column:1;grid-row:2;margin-top:0}
+ :root[data-theme="dark"] .mini-ranking-row.is-me{background:#264f3d;color:#c5f2d8}
+}
+/* Dots indicate revealed, settled picks in the selected ranking scope. */
+.ranking-form-dots{display:flex;align-items:center;flex-wrap:wrap;gap:4px;max-width:220px}
+.ranking-form-dot{display:inline-block;flex:none;width:9px;height:9px;border-radius:50%;background:#c7c7ce;border:1px solid rgba(0,0,0,.08)}
+.ranking-form-hit{background:#22a866}
+.ranking-form-miss{background:#e05261}
+.ranking-form-double{background:#9047bd}
+.ranking-form-empty{color:var(--muted)}
+.ranking-form-mobile{display:none}
+@media(max-width:720px){
+ .ranking-table thead .ranking-col-form,.ranking-table tbody .ranking-col-form{display:none}
+ .ranking-form-mobile{display:block;margin-top:7px}
+ .ranking-form-mobile .ranking-form-dots{gap:3px;max-width:100%}
+ .ranking-form-mobile .ranking-form-dot{width:8px;height:8px}
+}
