@@ -269,3 +269,8 @@ dialog{border:0;border-radius:18px;padding:28px;max-width:430px;width:90vw;color
 :root[data-theme="dark"] .double-miss{background:#4a2026;color:#ffb4b4;border-color:#be6671}
 :root[data-theme="dark"] .double-pending{background:#302b3f;color:#dfd9e9;border-color:#75677e}
 
+/* In-app Back uses the same history as the browser and mobile Back button. */
+.back-nav{width:40px;height:40px;flex-shrink:0;border:0;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;display:grid;place-items:center}
+.back-nav:disabled{cursor:default;opacity:.35}
+.topbar .hamb,.topbar .refresh{flex-shrink:0}
+

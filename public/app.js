@@ -1,8 +1,38 @@
 import {createPushManager} from './js/push.js';
+import {createNavigation} from './js/navigation.js?v=20261123-back1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
 const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
+function currentRoute(){return {view:state.view,selectedSeason:state.selectedSeason,round:state.round,cycle:state.cycle,scope:state.scope,archiveScope:state.archiveScope};}
+function normalizeRoute(value){
+ const route=value&&typeof value==='object'?value:{},boot=state.boot;
+ const season=Number(boot?.season||2026),rounds=boot?.rounds||[],cycles=boot?.cycles||[];
+ const round=rounds.some(r=>Number(r.number)===Number(route.round))?Number(route.round):Number(boot?.currentRound||1);
+ const cycle=cycles.some(c=>Number(c.id)===Number(route.cycle))?Number(route.cycle):Number(rounds.find(r=>Number(r.number)===round)?.cycle||1);
+ const scopes=['all','1','2','3','4'];
+ let selectedSeason=[season,season-1].includes(Number(route.selectedSeason))?Number(route.selectedSeason):season;
+ let view=['round','results','mine','stats','standings','rules','archive','admin','system'].includes(route.view)?route.view:'round';
+ if(['admin','system'].includes(view)&&!boot?.user?.admin){view='round';selectedSeason=season;}
+ if(view==='archive'&&selectedSeason===season)selectedSeason=season-1;
+ if(selectedSeason!==season&&!['archive','rules'].includes(view))view='archive';
+ return {view,selectedSeason,round,cycle,scope:scopes.includes(String(route.scope))?String(route.scope):String(cycle),archiveScope:scopes.includes(String(route.archiveScope))?String(route.archiveScope):'all'};
+}
+function updateBackButton(canGoBack){const button=$('#back-nav');if(button)button.disabled=!canGoBack;}
+function closeNavigationOverlays(){
+ setMenu(false);
+ $('#team-picker-menu')?.classList.remove('open');
+ const dialog=$('#password-dialog');if(dialog?.open)dialog.close();
+ const winner=$('#winner-popup-host'),wake=$('#wake-popup-host');
+ if(winner)winner.innerHTML='';if(wake)wake.innerHTML='';
+}
+async function restoreRoute(route){
+ if(!state.boot)return;
+ Object.assign(state,normalizeRoute(route));state.editingPick=null;
+ closeNavigationOverlays();await load(state.view,false,'skip');
+}
+const navigation=createNavigation({history:window.history,normalizeRoute,onRestore:restoreRoute,onChange:updateBackButton});
+window.addEventListener('popstate',event=>{navigation.handlePop(event.state).catch(error=>{if(state.boot)toast(error.message||'Povratak nije uspio.');});});
 const formatTime=s=>s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',dateStyle:'short',timeStyle:'short'}).format(new Date(s*1000)):'Nije postavljen';
 const score=f=>f.home_score===null||f.away_score===null?'vs':`${f.home_score} : ${f.away_score}`;
 const empty=msg=>`<div class="empty">${esc(msg)}</div>`;
@@ -50,7 +80,7 @@ async function loadLoginPlayers(){
   if(saved&&state.loginPlayers.some(p=>p.name===saved))select.value=saved;renderRegistrationEntry();
  }catch(e){select.innerHTML='<option value="">Ne mogu učitati igrače</option>';state.registration=null;renderRegistrationEntry();}
 }
-function showLogin(){state.boot=null;$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
+function showLogin(){state.boot=null;state.sequence++;navigation.stop();closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
 function setMenu(open){$('#nav').classList.toggle('open',open);const v=$('#veil');v.hidden=!open;v.classList.toggle('open',open);}
 function nav(){
  const archived=Number(state.selectedSeason)!==Number(state.boot.season);
@@ -76,10 +106,22 @@ const pushManager=createPushManager({
 const initPushUser=()=>pushManager.initUser();
 const togglePush=()=>pushManager.toggle();
 const pushLogout=()=>pushManager.logout();
-async function enter(){state.boot=await api('/bootstrap');state.selectedSeason=Number(state.boot.season);state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;state.scope=String(state.cycle);state.editingPick=null;$('#user-name').textContent=state.boot.user.name;$('#drawer-user').textContent=state.boot.user.name;$('#loading').hidden=true;$('#login').hidden=true;$('#app').hidden=false;await load('round');if(state.boot.wakeUp?.active)setTimeout(()=>showWakeUpPopup(state.boot.wakeUp.message||'Magarac jedan probudi se!'),120);setTimeout(liveRefreshTick,1000);initPushUser();}
+async function enter(restoreHistory=true){
+ state.boot=await api('/bootstrap');state.selectedSeason=Number(state.boot.season);state.view='round';
+ state.round=state.boot.currentRound;state.cycle=state.boot.rounds.find(r=>r.number===state.round)?.cycle||1;
+ state.scope=String(state.cycle);state.archiveScope='all';state.editingPick=null;
+ Object.assign(state,navigation.start(currentRoute(),{restore:restoreHistory}));
+ $('#user-name').textContent=state.boot.user.name;$('#drawer-user').textContent=state.boot.user.name;
+ $('#loading').hidden=true;$('#login').hidden=true;$('#app').hidden=false;
+ await load(state.view,false,'skip');
+ if(state.boot?.wakeUp?.active)setTimeout(()=>{if(state.boot)showWakeUpPopup(state.boot.wakeUp.message||'Magarac jedan probudi se!');},120);
+ setTimeout(liveRefreshTick,1000);initPushUser();
+}
 function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat</label><select class="scope" aria-label="Odabir kruga" id="scope">${[1,2,3,4].map(c=>`<option value="${c}" ${state.scope===String(c)?'selected':''}>Krug ${c} · kola ${state.boot.cycles.find(x=>x.id===c)?.from||''}–${state.boot.cycles.find(x=>x.id===c)?.to||''}</option>`).join('')}<option value="all" ${state.scope==='all'?'selected':''}>Ukupna tablica · sva 4 kruga</option></select></div>`;}
-async function load(view=state.view,silent=false){
- state.view=view;nav();setMenu(false);const seq=++state.sequence;if(!silent)$('#main').innerHTML='<div class="loading"><div class="spinner"></div>Ucitavam podatke...</div>';
+async function load(view=state.view,silent=false,historyMode='push'){
+ if(!state.boot)return;
+ state.view=view;if(!silent&&historyMode!=='skip')navigation.record(currentRoute());
+ nav();setMenu(false);const seq=++state.sequence;if(!silent)$('#main').innerHTML='<div class="loading"><div class="spinner"></div>Ucitavam podatke...</div>';
  try{let data;
   if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
@@ -366,7 +408,7 @@ function renderSystem(){
 }
 
 async function mutation(button,fn){if(state.busy)return;state.busy=true;if(button)button.disabled=true;try{await fn();}catch(e){toast(e.message);}finally{state.busy=false;if(button)button.disabled=false;}}
-$('#login-form').addEventListener('submit',e=>{e.preventDefault();const f=e.target;mutation(f.querySelector('button'),async()=>{$('#login-error').textContent='';try{await api('/login',{name:f.elements.name.value,password:f.elements.password.value});localStorage.setItem('kzm_novi_name',f.elements.name.value);f.elements.password.value='';await enter();}catch(x){$('#login-error').innerHTML=`<div class="error">${esc(x.message)}</div>`;}});});
+$('#login-form').addEventListener('submit',e=>{e.preventDefault();const f=e.target;mutation(f.querySelector('button'),async()=>{$('#login-error').textContent='';try{await api('/login',{name:f.elements.name.value,password:f.elements.password.value});localStorage.setItem('kzm_novi_name',f.elements.name.value);f.elements.password.value='';await enter(false);}catch(x){$('#login-error').innerHTML=`<div class="error">${esc(x.message)}</div>`;}});});
 $('#registration-form').addEventListener('submit',e=>{e.preventDefault();const f=e.target;mutation(f.querySelector('[type=submit]'),async()=>{const error=$('#registration-error');error.textContent='';const name=f.elements.name.value.trim(),password=f.elements.password.value;if(password!==f.elements.password2.value){error.innerHTML='<div class="error">PIN-ovi se ne podudaraju.</div>';return;}try{const d=await api('/register',{name,password});f.reset();f.hidden=true;await loadLoginPlayers();error.innerHTML=`<div class="fine"><strong>Zahtjev je poslan.</strong><br>${esc(d.message||'Administrator ga mora odobriti prije nego što možeš igrati.')}</div>`;toast('Zahtjev za registraciju je poslan administratoru.');}catch(x){error.innerHTML=`<div class="error">${esc(x.message)}</div>`;await loadLoginPlayers();}});});
 $('#veil').addEventListener('click',()=>setMenu(false));
 $('#winner-popup-host').addEventListener('click',e=>{if(e.target.classList.contains('winner-popup-backdrop')||e.target.closest('[data-action="close-winner"]'))closeWinnerPopup();});
@@ -407,6 +449,7 @@ document.addEventListener('click',async e=>{
  if(b.dataset.round){state.round=Number(b.dataset.round);load(state.view==='system'?'system':'round');return;}
  if(b.dataset.pickTeam){const hidden=$('#pick-team'),label=$('#team-picker-current'),menu=$('#team-picker-menu');hidden.value=b.dataset.pickTeam;label.innerHTML=clubBadge(b.dataset.pickName,'sm')+`<span>${esc(b.dataset.pickName)}</span>`;menu.querySelectorAll('.team-picker-option').forEach(x=>x.classList.toggle('selected',x===b));menu.classList.remove('open');return;}
  const a=b.dataset.action;
+ if(a==='back'){navigation.back();return;}
  if(a==='show-registration'){const f=$('#registration-form');if(f&&!b.disabled){f.hidden=false;f.elements.name.focus();}return;}
  if(a==='cancel-registration'){const f=$('#registration-form');if(f){f.reset();f.hidden=true;}const x=$('#registration-error');if(x)x.textContent='';return;}
  if(a==='menu'){setMenu(!$('#nav').classList.contains('open'));return;}
