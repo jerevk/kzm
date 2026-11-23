@@ -3,7 +3,7 @@ import {createNavigation} from './js/navigation.js?v=20261123-back1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr=esc;
-const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false};
+const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[]};
 function currentRoute(){return {view:state.view,selectedSeason:state.selectedSeason,round:state.round,cycle:state.cycle,scope:state.scope,archiveScope:state.archiveScope};}
 function normalizeRoute(value){
  const route=value&&typeof value==='object'?value:{},boot=state.boot;
@@ -80,7 +80,7 @@ async function loadLoginPlayers(){
   if(saved&&state.loginPlayers.some(p=>p.name===saved))select.value=saved;renderRegistrationEntry();
  }catch(e){select.innerHTML='<option value="">Ne mogu učitati igrače</option>';state.registration=null;renderRegistrationEntry();}
 }
-function showLogin(){state.boot=null;state.sequence++;navigation.stop();closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
+function showLogin(){state.boot=null;state.sequence++;navigation.stop();rememberAdminPanels(null);closeNavigationOverlays();$('#loading').hidden=true;$('#app').hidden=true;$('#login').hidden=false;$('#login-form').elements.password.value='';const rf=$('#registration-form');if(rf){rf.hidden=true;rf.reset();}const re=$('#registration-error');if(re)re.textContent='';loadLoginPlayers();}
 function setMenu(open){$('#nav').classList.toggle('open',open);const v=$('#veil');v.hidden=!open;v.classList.toggle('open',open);}
 function nav(){
  const archived=Number(state.selectedSeason)!==Number(state.boot.season);
@@ -120,6 +120,8 @@ async function enter(restoreHistory=true){
 function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat</label><select class="scope" aria-label="Odabir kruga" id="scope">${[1,2,3,4].map(c=>`<option value="${c}" ${state.scope===String(c)?'selected':''}>Krug ${c} · kola ${state.boot.cycles.find(x=>x.id===c)?.from||''}–${state.boot.cycles.find(x=>x.id===c)?.to||''}</option>`).join('')}<option value="all" ${state.scope==='all'?'selected':''}>Ukupna tablica · sva 4 kruga</option></select></div>`;}
 async function load(view=state.view,silent=false,historyMode='push'){
  if(!state.boot)return;
+ if(silent&&view==='admin'&&adminFormOpen())return;
+ rememberAdminPanels(view);
  state.view=view;if(!silent&&historyMode!=='skip')navigation.record(currentRoute());
  nav();setMenu(false);const seq=++state.sequence;if(!silent)$('#main').innerHTML='<div class="loading"><div class="spinner"></div>Ucitavam podatke...</div>';
  try{let data;
@@ -130,7 +132,7 @@ async function load(view=state.view,silent=false,historyMode='push'){
   if(view==='mine'){data=await api('/mine');if(seq!==state.sequence)return;renderMine(data);}
   if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence)return;renderStats(data);}
   if(view==='standings'){data=await api('/standings');if(seq!==state.sequence)return;renderStandings(data);}
-  if(view==='admin'){data=await api('/admin/panel');if(seq!==state.sequence)return;state.admin=data;renderAdmin();}
+  if(view==='admin'){data=await api('/admin/panel');if(seq!==state.sequence||silent&&(state.busy||adminFormOpen()))return;state.admin=data;renderAdmin();}
   if(view==='system'){const x=await Promise.all([api('/admin/teams'),api('/round/'+state.round),api('/admin/points-diagnostics?round='+state.round)]);if(seq!==state.sequence)return;state.teams=x[0].teams;state.roundData=x[1];state.pointsDiagnostics=x[2];renderSystem();}
  }catch(e){if(!silent&&seq===state.sequence)$('#main').innerHTML=`<div class="error" role="alert">${esc(e.message)}</div><button data-action="refresh">Pokusaj ponovno</button>`;}
 }
@@ -141,6 +143,7 @@ function liveWindowOpen(){
 async function liveRefreshTick(){
  if(document.visibilityState==='hidden'||!state.boot||state.busy||state.liveRefreshing)return;
  if(!['round','results','mine','stats','standings','admin'].includes(state.view))return;
+ if(state.view==='admin'&&adminFormOpen())return;
  const adminRace=state.view==='admin'&&Number(state.admin?.sourceRaceActive||0)>0;
  state.liveRefreshing=true;
  try{
@@ -166,19 +169,19 @@ function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.aw
 function pickSummary(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">TVOJ PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge(p):''}</div><div class="selected-points">${p.points??'-'}<small>BODOVA</small></div></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}</div>`;}
 function savedOpenPick(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">SPREMLJENI PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge({...p,settled:false}):''}</div><span class="pill green">SPREMLJENO</span></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}<button type="button" class="primary full" data-action="change-pick">PROMIJENI PICK</button></div>`;}
 function roundPickStats(d){
- if(!d?.round?.locked)return [];
+ if(!d?.round?.revealed)return [];
  const counts=new Map();
  for(const x of d.players||[]){if(!x.pick?.team_name)continue;const k=clubKey(x.pick.team_name);const cur=counts.get(k)||{name:x.pick.team_name,count:0};cur.count++;counts.set(k,cur);}
  return [...counts.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'hr'));
 }
 function renderRoundPickStats(d){
- if(!d?.round?.locked)return '';
+ if(!d?.round?.revealed)return '';
  const rows=roundPickStats(d);if(!rows.length)return '';
  const max=Math.max(1,...rows.map(x=>x.count));const total=rows.reduce((n,x)=>n+x.count,0);
  return `<div class="card"><div class="card-head"><h2>Statistika odabira</h2><span class="pill">${total} pickova</span></div><p class="fine">Dostupno nakon zaključavanja kola.</p><div class="pick-stats-list">${rows.map(x=>`<div class="pick-stat-row"><div class="pick-stat-club">${clubBadge(x.name,'sm')}<span>${esc(x.name)}</span></div><div class="pick-stat-track"><span style="width:${Math.round(100*x.count/max)}%"></span></div><div class="pick-stat-count">${x.count}</div></div>`).join('')}</div></div>`;
 }
 function roundComplete(d){
- return !!(d?.round?.locked&&(d.fixtures||[]).length&&(d.fixtures||[]).every(f=>['FINISHED','AWARDED'].includes(String(f.status||'').toUpperCase())&&f.home_score!==null&&f.home_score!==undefined&&f.away_score!==null&&f.away_score!==undefined));
+ return !!(d?.round?.revealed&&(d.fixtures||[]).length&&(d.fixtures||[]).every(f=>['FINISHED','AWARDED'].includes(String(f.status||'').toUpperCase())&&f.home_score!==null&&f.home_score!==undefined&&f.away_score!==null&&f.away_score!==undefined));
 }
 function roundTopScorers(d){
  if(!roundComplete(d))return null;
@@ -243,7 +246,7 @@ function renderRound(d){
  const fixtures=d.fixtures.map(f=>fixtureHtml(f,p)).join('');
  const notPicked=d.players.filter(x=>!x.chosen);
  let right='';
- if(d.round.locked){
+ if(d.round.revealed){
   const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''}"><td><strong>${esc(x.name)}</strong></td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?doubleBadge(x.pick):'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
   right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
   right+=renderRoundTopScorers(d);
@@ -314,7 +317,7 @@ function syncAdminPickEditor(){
 function raceClock(s){return s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(Number(s)*1000)):'-';}
 function sourceRaceHtml(d){
  const rows=d.sourceRace||[];
- if(!rows.length)return `<div class="card"><div class="card-head"><h2>Utrka izvora</h2><span class="pill">TEST</span></div><p class="fine">ESPN je primarni live fallback dok utakmica traje, a football-data.org ostaje fallback i izvor punog rasporeda. Bilježenje počinje automatski kad utakmica krene.</p><div class="empty">Još nema zabilježenih live promjena.</div></div>`;
+ if(!rows.length)return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>Utrka izvora</h2><span class="pill">TEST</span></div><p class="fine">ESPN je primarni live fallback dok utakmica traje, a football-data.org ostaje fallback i izvor punog rasporeda. Bilježenje počinje automatski kad utakmica krene.</p><div class="empty">Još nema zabilježenih live promjena.</div></div>`;
  const groups=new Map();
  for(const r of rows){
   if(r.home_score===null||r.away_score===null)continue;
@@ -330,10 +333,39 @@ function sourceRaceHtml(d){
   if(e&&f){const delta=f-e;verdict=delta===0?'Isti ciklus':delta>0?`ESPN ranije ${delta} s`:`football-data.org ranije ${Math.abs(delta)} s`;}
   return `<tr><td><strong>${esc(g.home_name)} - ${esc(g.away_name)}</strong></td><td><strong>${esc(g.score)}</strong></td><td>${raceClock(e)}</td><td>${raceClock(f)}</td><td>${esc(verdict)}</td></tr>`;
  }).join('');
- return `<div class="card"><div class="card-head"><h2>Utrka izvora</h2><span class="pill ${Number(d.sourceRaceActive||0)>0?'green':''}">${Number(d.sourceRaceActive||0)>0?'LIVE TEST':'ČEKA UTAKMICU'}</span></div><p class="fine"><strong>ESPN sada može ažurirati live rezultat u D1.</strong> football-data.org se koristi kao fallback i za puni raspored. Tablica i dalje pokazuje kada je koji izvor prijavio promjenu. Admin ekran se osvježava svakih 20 sekundi dok utakmica traje.</p>${d.sourceRaceEspnError?`<div class="error">ESPN: ${esc(d.sourceRaceEspnError)}</div>`:''}${d.sourceRaceFootballError?`<div class="error">football-data.org: ${esc(d.sourceRaceFootballError)}</div>`:''}<div class="table-wrap"><table><thead><tr><th>Utakmica</th><th>Rezultat</th><th>ESPN</th><th>football-data.org</th><th>Brži izvor</th></tr></thead><tbody>${body||'<tr><td colspan="5">Čekam prvu promjenu rezultata.</td></tr>'}</tbody></table></div></div>`;
+ return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>Utrka izvora</h2><span class="pill ${Number(d.sourceRaceActive||0)>0?'green':''}">${Number(d.sourceRaceActive||0)>0?'LIVE TEST':'ČEKA UTAKMICU'}</span></div><p class="fine"><strong>ESPN sada može ažurirati live rezultat u D1.</strong> football-data.org se koristi kao fallback i za puni raspored. Tablica i dalje pokazuje kada je koji izvor prijavio promjenu. Pregled se osvježava svakih 15 sekundi dok nije otvoren obrazac za uređivanje.</p>${d.sourceRaceEspnError?`<div class="error">ESPN: ${esc(d.sourceRaceEspnError)}</div>`:''}${d.sourceRaceFootballError?`<div class="error">football-data.org: ${esc(d.sourceRaceFootballError)}</div>`:''}<div class="table-wrap"><table><thead><tr><th>Utakmica</th><th>Rezultat</th><th>ESPN</th><th>football-data.org</th><th>Brži izvor</th></tr></thead><tbody>${body||'<tr><td colspan="5">Čekam prvu promjenu rezultata.</td></tr>'}</tbody></table></div></div>`;
 }
 
 function registrationCycleText(c){return c?`${Number(c)}. krug`:'sljedeća sezona';}
+function adminFormOpen(){return !!($('#password-dialog')?.open||$('#main details[data-admin-panel][open] form'));}
+function rememberAdminPanels(view){
+ if(!['admin','system'].includes(view)||state.adminPanelView!==view){state.adminPanelView=['admin','system'].includes(view)?view:null;state.adminOpenPanels=[];return;}
+ const panels=document.querySelectorAll('#main details[data-admin-panel]');
+ if(panels.length)state.adminOpenPanels=[...panels].filter(panel=>panel.open).map(panel=>panel.dataset.adminPanel);
+}
+function collapseAdminPanels(view){
+ const main=$('#main');
+ main.querySelectorAll('.card[data-admin-panel]').forEach(card=>{
+  const title=card.querySelector(':scope > h2, :scope > .card-head > h2, :scope > strong');
+  if(!title)return;
+  const panel=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('div');
+  panel.className=card.className+' admin-panel';panel.dataset.adminPanel=card.dataset.adminPanel;
+  panel.dataset.adminGroup=card.parentElement.closest('[data-admin-panel]')?.dataset.adminPanel||view;
+  panel.setAttribute('name','kzm-admin-'+panel.dataset.adminGroup);
+  summary.className='admin-panel-summary';body.className='admin-panel-body';
+  const heading=document.createElement('h2');heading.textContent=title.textContent;summary.append(heading);title.remove();
+  const head=card.querySelector(':scope > .card-head');
+  if(head){head.querySelectorAll(':scope > .pill, :scope > .badge').forEach(badge=>summary.append(badge));if(!head.children.length)head.remove();}
+  while(card.firstChild)body.append(card.firstChild);
+  panel.append(summary,body);panel.open=state.adminOpenPanels.includes(panel.dataset.adminPanel);card.replaceWith(panel);
+  panel.addEventListener('toggle',()=>{
+   if(!panel.isConnected)return;
+   if(panel.open){main.querySelectorAll('details[data-admin-panel]').forEach(other=>{if(other!==panel&&other.dataset.adminGroup===panel.dataset.adminGroup)other.open=false;});}
+   else panel.querySelectorAll('details').forEach(child=>{child.open=false;});
+   rememberAdminPanels(view);
+  });
+ });
+}
 function registrationRequestCard(d){
  const rows=(d.registrations||[]).filter(r=>r.status!=='active').sort((a,b)=>(Number(b.requestedAt||0)-Number(a.requestedAt||0))||String(a.name).localeCompare(String(b.name),'hr'));
  const pending=rows.filter(r=>r.status==='pending').length,approved=rows.filter(r=>r.status==='approved').length;
@@ -342,18 +374,19 @@ function registrationRequestCard(d){
   const approveText=r.status==='rejected'?'PONOVNO ODOBRI':'ODOBRI';
   return `<tr><td><strong>${esc(r.name)}</strong></td><td>${status}</td><td>${esc(registrationCycleText(r.eligibleCycle))}</td><td>${r.requestedAt?formatTime(r.requestedAt):'-'}</td><td><div class="actions"><button class="small-btn" data-reg-approve="${attr(r.playerId)}" ${r.status==='approved'?'disabled':''}>${approveText}</button><button class="small-btn danger" data-reg-reject="${attr(r.playerId)}" ${r.status==='rejected'?'disabled':''}>ODBIJ</button></div></td></tr>`;
  }).join('');
- return `<div class="card"><div class="card-head"><h2>Zahtjevi za registraciju</h2><span class="pill ${pending?'pink':approved?'green':''}">${pending} čeka · ${approved} odobreno</span></div><p class="fine"><strong>Nitko tko se sam registrira ne može odmah igrati.</strong> Prvo moraš odobriti zahtjev. I nakon odobrenja igrač ostaje neaktivan do sljedećeg kruga; sustav ga automatski aktivira tek kada završi prethodni krug. Odbijeni zahtjev nema pristup igri.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Status</th><th>Najraniji ulazak</th><th>Zahtjev</th><th>Odluka</th></tr></thead><tbody>${body||'<tr><td colspan="5">Nema zahtjeva na čekanju.</td></tr>'}</tbody></table></div></div>`;
+ return `<div class="card" data-admin-panel="registration-requests"><div class="card-head"><h2>Zahtjevi za registraciju</h2><span class="pill ${pending?'pink':approved?'green':''}">${pending} čeka · ${approved} odobreno</span></div><p class="fine"><strong>Nitko tko se sam registrira ne može odmah igrati.</strong> Prvo moraš odobriti zahtjev. I nakon odobrenja igrač ostaje neaktivan do sljedećeg kruga; sustav ga automatski aktivira tek kada završi prethodni krug. Odbijeni zahtjev nema pristup igri.</p><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Status</th><th>Najraniji ulazak</th><th>Zahtjev</th><th>Odluka</th></tr></thead><tbody>${body||'<tr><td colspan="5">Nema zahtjeva na čekanju.</td></tr>'}</tbody></table></div></div>`;
 }
 function pushDiagnosticsHtml(){
  const rows=state.pushDiagnostics;
  const head=`<div class="card-head"><h2>Push obavijesti</h2><button class="small-btn" data-action="push-diagnostics">PROVJERI PRETPLATE</button></div>`;
- if(!rows)return `<div class="card">${head}<p class="fine">Provjera cita OneSignal stanje po KZM external ID-u. Ne salje obavijest i ne mijenja pretplate.</p><div class="empty">Klikni PROVJERI PRETPLATE da vidis tko stvarno ima aktivan push uredjaj povezan s KZM racunom.</div></div>`;
+ if(!rows)return `<div class="card" data-admin-panel="push-notifications">${head}<p class="fine">Provjera cita OneSignal stanje po KZM external ID-u. Ne salje obavijest i ne mijenja pretplate.</p><div class="empty">Klikni PROVJERI PRETPLATE da vidis tko stvarno ima aktivan push uredjaj povezan s KZM racunom.</div></div>`;
  const ok=rows.filter(x=>Number(x.enabledPush)>0).length;
  const body=rows.map(x=>{const good=Number(x.enabledPush)>0,status=x.error?`<span class="pill pink">GRESKA</span>`:good?`<span class="pill green">${x.enabledPush} AKTIVAN</span>`:`<span class="pill">NEMA AKTIVNOG</span>`;const note=x.error?esc(x.error):x.found?`${Number(x.totalPush||0)} push zapisa${x.types?.length?` · ${esc(x.types.join(', '))}`:''}`:'External ID nije pronadjen u OneSignalu';return `<tr><td><strong>${esc(x.name)}</strong></td><td>${status}<div class="fine">${note}</div></td><td>${good?`<button class="small-btn" data-push-test-player="${attr(x.playerId)}">TEST</button>`:'-'}</td></tr>`;}).join('');
- return `<div class="card">${head}<p class="fine"><strong>${ok}/${rows.length}</strong> aktivnih igraca trenutno ima barem jednu aktivnu OneSignal push pretplatu povezanu s KZM external ID-em.</p><div class="table-wrap"><table><thead><tr><th>Igrac</th><th>OneSignal</th><th>Test</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+ return `<div class="card" data-admin-panel="push-notifications">${head}<p class="fine"><strong>${ok}/${rows.length}</strong> aktivnih igraca trenutno ima barem jednu aktivnu OneSignal push pretplatu povezanu s KZM external ID-em.</p><div class="table-wrap"><table><thead><tr><th>Igrac</th><th>OneSignal</th><th>Test</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
 function renderAdmin(){
+ rememberAdminPanels('admin');
  const d=state.admin;
  const players=d.players||[],teams=(state.boot?.teams||[]).slice().sort((x,y)=>x.name.localeCompare(y.name,'hr'));
  const regByPlayer=new Map((d.registrations||[]).map(r=>[r.playerId,r])),pickPlayers=players.filter(p=>p.active||!regByPlayer.has(p.id));
@@ -364,16 +397,16 @@ function renderAdmin(){
  const teamOptions='<option value="">Odaberi ekipu</option>'+teams.map(t=>`<option value="${attr(t.id)}">${esc(t.name)}</option>`).join('');
  const activePlayers=players.filter(p=>p.active).length,regState=d.registration||{},occupiedPlayers=Number(regState.occupiedPlayers??activePlayers),maxPlayers=Math.max(occupiedPlayers,Number(d.settings.max_players||40)),registrationOpen=d.settings.registration_open!=='0';
  const playerRows=players.map(p=>{const rr=regByPlayer.get(p.id),tag=rr&&!p.active?(rr.status==='pending'?' <span class="pill pink">ČEKA ODOBRENJE</span>':rr.status==='approved'?` <span class="pill green">ODOBREN ZA ${esc(registrationCycleText(rr.eligibleCycle))}</span>`:rr.status==='rejected'?' <span class="pill">ODBIJEN</span>':''):'';const activeButton=p.is_admin?'':rr&&!p.active?'':`<button class="small-btn ${p.active?'danger':''}" data-active="${esc(p.id)}">${p.active?'Deaktiviraj':'Aktiviraj'}</button>`;return `<tr class="${!p.active?'inactive':''}"><td><strong>${esc(p.name)}</strong>${p.is_admin?' <span class="pill">ADMIN</span>':''}${tag}</td>${[1,2,3,4].map(c=>`<td><button class="pay ${p.payments[c]===true?'yes':p.payments[c]===false?'no':'unknown'}" data-pay="${esc(p.id)}" data-pay-cycle="${c}">${p.payments[c]===true?'PLACENO':p.payments[c]===false?'NEPLACENO':'NIJE OZNACENO'}</button></td>`).join('')}<td><div class="actions"><button class="small-btn" data-password="${esc(p.id)}">PIN</button>${activeButton}</div></td></tr>`;}).join('');
- $('#main').innerHTML=hero('Admin postavke','Upravljanje igracima, pickovima i placanjima izravno u D1','SAMO ADMIN')+
- `<div class="card"><div class="card-head"><h2>Registracija i limit igrača</h2><span class="pill ${registrationOpen?'green':''}">${occupiedPlayers} / ${maxPlayers}</span></div>
+ $('#main').innerHTML=hero('Admin postavke','Klikni naslov odjeljka koji želiš otvoriti.','SAMO ADMIN')+
+ `<div class="card" data-admin-panel="registration-settings"><div class="card-head"><h2>Registracija i limit igrača</h2><span class="pill ${registrationOpen?'green':''}">${occupiedPlayers} / ${maxPlayers}</span></div>
   <form id="registration-settings-form" class="form-grid">
    <label>Registracija<select name="registrationOpen"><option value="1" ${registrationOpen?'selected':''}>OTVORENA</option><option value="0" ${!registrationOpen?'selected':''}>ZATVORENA</option></select></label>
    <label>Limit igrača<input name="maxPlayers" type="number" min="${occupiedPlayers}" max="200" value="${maxPlayers}" required></label>
    <div><label>&nbsp;</label><button class="primary full" type="submit">SPREMI REGISTRACIJU</button></div>
   </form><p class="fine">Limit uključuje aktivne igrače i odobrene igrače koji čekaju početak sljedećeg kruga. Neodobreni zahtjevi ne zauzimaju mjesto i nikad ne daju trenutačan pristup igri.</p></div>`+
  registrationRequestCard(d)+
- `<div class="card"><h2>Arhiva 2025/26</h2><p>Podaci iz dostavljenih fotografija: 1., 2., 3. i 4. krug te ukupni poredak. Uvoz ne mijenja bodove ni odabire aktualne sezone.</p><button type="button" class="primary" data-action="import-archive-2025">UVEZI PROŠLU SEZONU</button></div>`+
- `<div class="card"><div class="card-head"><h2>Ispravi pick igrača</h2><span class="pill pink">ADMIN ISPRAVAK</span></div>
+ `<div class="card" data-admin-panel="archive-import"><h2>Arhiva 2025/26</h2><p>Podaci iz dostavljenih fotografija: 1., 2., 3. i 4. krug te ukupni poredak. Uvoz ne mijenja bodove ni odabire aktualne sezone.</p><button type="button" class="primary" data-action="import-archive-2025">UVEZI PROŠLU SEZONU</button></div>`+
+ `<div class="card" data-admin-panel="pick-correction"><div class="card-head"><h2>Ispravi pick igrača</h2><span class="pill pink">ADMIN ISPRAVAK</span></div>
   <p class="fine">Za pogrešno spremljene pickove. Radi i nakon zaključavanja kola. Pravilo jedne ekipe i jednog DOUBLE-a po krugu i dalje vrijedi, a svaka promjena ulazi u zapis promjena.</p>
   <form id="admin-pick-form" class="form-grid">
    <label>Igrač<select name="playerId" required>${playerOptions}</select></label>
@@ -383,12 +416,12 @@ function renderAdmin(){
    <button class="primary" type="submit">SPREMI ISPRAVAK PICKA</button>
    <button class="danger" type="button" data-action="admin-delete-pick">OBRIŠI PICK</button>
   </form><div id="admin-pick-current" class="fine" style="margin-top:12px"></div></div>`+
- `<div class="card"><div class="card-head"><h2>Dodaj igraca</h2><span class="pill green">${players.filter(p=>p.active).length} aktivnih</span></div><form id="player-form" class="form-grid"><label>Ime i prezime<input name="name" required maxlength="80"></label><label>PIN<input name="password" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password"></label><div><label>&nbsp;</label><button class="primary full">DODAJ IGRACA</button></div></form></div>`+
- `<div class="card"><div class="card-head"><h2>Igraci i placanja</h2><button data-action="refresh" class="small-btn">OSVJEZI</button></div><div class="admin-table-wrap"><table><thead><tr><th>Igrac</th>${[1,2,3,4].map(c=>`<th>Krug ${c}</th>`).join('')}<th>Akcije</th></tr></thead><tbody>${playerRows}</tbody></table></div></div>`+
+ `<div class="card" data-admin-panel="add-player"><div class="card-head"><h2>Dodaj igrača</h2><span class="pill green">${players.filter(p=>p.active).length} aktivnih</span></div><form id="player-form" class="form-grid"><label>Ime i prezime<input name="name" required maxlength="80"></label><label>PIN<input name="password" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="12" autocomplete="new-password"></label><div><label>&nbsp;</label><button class="primary full">DODAJ IGRACA</button></div></form></div>`+
+ `<div class="card" data-admin-panel="players-payments"><div class="card-head"><h2>Igrači i plaćanja</h2><button data-action="refresh" class="small-btn">OSVJEZI</button></div><div class="admin-table-wrap"><table><thead><tr><th>Igrac</th>${[1,2,3,4].map(c=>`<th>Krug ${c}</th>`).join('')}<th>Akcije</th></tr></thead><tbody>${playerRows}</tbody></table></div></div>`+
  pushDiagnosticsHtml()+
  sourceRaceHtml(d)+
- `<div class="card"><h2>Ispravljanje starih rezultata</h2><p class="fine">Otvori uredivanje utakmica i odaberi bilo koje od 38 kola, ukljucujuci zavrsena.</p><button class="primary" data-view="system">UREDI REZULTATE SVIH KOLA</button></div>\n <div class="card"><div class="card-head"><h2>Sustav i raspored</h2><span class="pill">D1</span></div><div class="actions"><button class="secondary" data-view="system">KLUBOVI, ROKOVI I REZULTATI</button><button data-action="toggle-picks" class="${d.settings.picks_enabled==='1'?'danger':'primary'}">${d.settings.picks_enabled==='1'?'ZAUSTAVI ODABIRE':'OMOGUCI ODABIRE'}</button><button data-action="sync">RUČNO OSVJEŽI CIJELI RASPORED</button><button data-action="espn-test" class="secondary">TEST ESPN</button><button data-action="push-test" class="secondary">TEST PUSH</button></div><p class="fine"><strong>Auto live:</strong> svake minute i dodatno preko browser live-pulsea. ESPN radi neovisno o football-data rate limitu; football-data.org ostaje fallback i puni raspored.<br>Zadnji live dohvat: ${formatTime(Number(d.settings.last_sync)||null)}${d.settings.last_sync_source?` · izvor: <strong>${esc(d.settings.last_sync_source)}</strong>`:''}</p>${d.settings.last_sync_error?`<div class="error">${esc(d.settings.last_sync_error)}</div>`:''}<details><summary>Zapis zadnjih promjena</summary><div class="table-wrap"><table>${d.audit.map(a=>`<tr><td>${formatTime(a.created_at)}</td><td>${esc(a.actor||'Sustav')}</td><td>${esc(a.action)}</td></tr>`).join('')}</table></div></details></div>`;
- syncAdminPickEditor();
+ `<div class="card" data-admin-panel="past-results"><h2>Ispravljanje starih rezultata</h2><p class="fine">Otvori uredivanje utakmica i odaberi bilo koje od 38 kola, ukljucujuci zavrsena.</p><button class="primary" data-view="system">UREDI REZULTATE SVIH KOLA</button></div>\n <div class="card" data-admin-panel="system-actions"><div class="card-head"><h2>Sustav i raspored</h2><span class="pill">D1</span></div><div class="actions"><button class="secondary" data-view="system">KLUBOVI, ROKOVI I REZULTATI</button><button data-action="toggle-picks" class="${d.settings.picks_enabled==='1'?'danger':'primary'}">${d.settings.picks_enabled==='1'?'ZAUSTAVI ODABIRE':'OMOGUCI ODABIRE'}</button><button data-action="sync">RUČNO OSVJEŽI CIJELI RASPORED</button><button data-action="espn-test" class="secondary">TEST ESPN</button><button data-action="push-test" class="secondary">TEST PUSH</button></div><p class="fine"><strong>Auto live:</strong> svake minute i dodatno preko browser live-pulsea. ESPN radi neovisno o football-data rate limitu; football-data.org ostaje fallback i puni raspored.<br>Zadnji live dohvat: ${formatTime(Number(d.settings.last_sync)||null)}${d.settings.last_sync_source?` · izvor: <strong>${esc(d.settings.last_sync_source)}</strong>`:''}</p>${d.settings.last_sync_error?`<div class="error">${esc(d.settings.last_sync_error)}</div>`:''}<details><summary>Zapis zadnjih promjena</summary><div class="table-wrap"><table>${d.audit.map(a=>`<tr><td>${formatTime(a.created_at)}</td><td>${esc(a.actor||'Sustav')}</td><td>${esc(a.action)}</td></tr>`).join('')}</table></div></details></div>`;
+ collapseAdminPanels('admin');syncAdminPickEditor();
 }
 
 function datetimeValue(timestamp){
@@ -401,10 +434,12 @@ function datetimeValue(timestamp){
 }
 
 function renderSystem(){
+ rememberAdminPanels('system');
  const q=state.pointsDiagnostics||{};
- const report=`<div class="card"><h2>Provjera bodova - kolo ${state.round}</h2><p><strong>Utakmice:</strong> ${q.finished||0} / ${q.fixtures||0} zavrsenih &nbsp; <strong>Odabiri:</strong> ${q.picks||0} &nbsp; <strong>Obracunati:</strong> ${q.scored||0} &nbsp; <strong>Bez bodova:</strong> ${q.pending||0}</p><p class="fine">${!q.locked?'Rok kola jos nije prosao (ili nije postavljen): bodovi su skriveni do zakljucavanja.':q.missingMatch?'Neki odabrani klubovi nemaju povezanu utakmicu u ovom kolu. Provjeri raspored i klubove.':q.pending?'Neki odabiri nemaju rezultat sa statusom FINISHED ili IN_PLAY. Provjeri utakmice.':q.imported?'Dio bodova dolazi iz ranijeg uvoza. Za zamjenu ispravljenim rezultatima koristi obracun ispod.':'Bodovi su obracunati; otvori tablicu ili osvjezi prikaz.'}</p></div>`;
+ const report=`<div class="card" data-admin-panel="points-diagnostics"><h2>Provjera bodova - kolo ${state.round}</h2><p><strong>Utakmice:</strong> ${q.finished||0} / ${q.fixtures||0} zavrsenih &nbsp; <strong>Odabiri:</strong> ${q.picks||0} &nbsp; <strong>Obracunati:</strong> ${q.scored||0} &nbsp; <strong>Bez bodova:</strong> ${q.pending||0}</p><p class="fine">${!q.locked?'Rok kola jos nije prosao (ili nije postavljen): bodovi su skriveni do zakljucavanja.':q.missingMatch?'Neki odabrani klubovi nemaju povezanu utakmicu u ovom kolu. Provjeri raspored i klubove.':q.pending?'Neki odabiri nemaju rezultat sa statusom FINISHED ili IN_PLAY. Provjeri utakmice.':q.imported?'Dio bodova dolazi iz ranijeg uvoza. Za zamjenu ispravljenim rezultatima koristi obracun ispod.':'Bodovi su obracunati; otvori tablicu ili osvjezi prikaz.'}</p></div>`;
  const d=state.roundData,ts=state.teams,opt=ts.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
- $('#main').innerHTML=hero('Uredjivanje lige','Klubovi, rokovi i rezultati - izravno u D1')+report+`<div class="actions" style="margin-bottom:16px"><button data-view="admin">Natrag na administraciju</button></div><div class="card"><h2>Ispravi rezultat iz bilo kojeg kola</h2><p class="fine">Odaberi prethodno ili tekuce kolo, zatim kod utakmice klikni Uredi. Rucni rezultat se ne prepisuje automatski.</p><div class="actions" style="flex-wrap:wrap;gap:6px">${Array.from({length:38},(_,i)=>i+1).map(n=>`<button type="button" class="small-btn ${n===state.round?'primary':'secondary'}" data-round="${n}" aria-pressed="${n===state.round}">${n}. kolo</button>`).join('')}</div></div><div class="card"><div class="card-head"><h2>Kolo ${state.round}</h2><span class="pill">ROK</span></div><form id="deadline-form"><label>Rok<input name="deadline" type="datetime-local" value="${datetimeValue(d.round.deadline)}" required></label><label class="double-toggle"><input type="checkbox" name="reopen"> Potvrdjujem ponovno otvaranje ako je kolo zakljucano.</label><button class="primary">Spremi rok</button></form></div><div class="card"><div class="card-head"><h2>Utakmice kola ${state.round}</h2><span class="pill">${d.fixtures.length}</span></div><div class="table-wrap"><table>${d.fixtures.map(f=>`<tr><td><span class="club-inline">${clubBadge(f.home_name,'sm')}${esc(f.home_name)}</span> - <span class="club-inline">${clubBadge(f.away_name,'sm')}${esc(f.away_name)}</span></td><td>${score(f)}</td><td><button data-fixture="${esc(f.id)}">Uredi</button></td></tr>`).join('')}</table></div><h3 id="fixture-form-title">Nova utakmica</h3><form id="fixture-form" class="form-grid"><input type="hidden" name="id"><label>Domacin<select name="homeId" required>${opt}</select></label><label>Gost<select name="awayId" required>${opt}</select></label><label>Pocetak<input name="kickoff" type="datetime-local"></label><label>Golovi domacin<input name="homeScore" type="number" min="0" max="99"></label><label>Golovi gost<input name="awayScore" type="number" min="0" max="99"></label><label>Status<select name="status">${['SCHEDULED','TIMED','IN_PLAY','PAUSED','FINISHED','POSTPONED','CANCELLED','SUSPENDED','AWARDED'].map(s=>`<option>${s}</option>`).join('')}</select></label><button class="primary">Spremi utakmicu</button><button type="button" data-action="reset-fixture">Nova utakmica</button></form><p class="fine">Rucno spremljen rezultat ne prepisuje nogometni API. Ako je kolo uvezeno sa starim bodovima, oni imaju prednost dok ne pokrenes ponovni obracun.</p><div class="card"><strong>Rezultati nisu presli u bodove?</strong><p>Prvo provjeri da utakmice imaju rezultat i status FINISHED, te da je rok kola prosao. Zatim klikni gumb ispod. Pozor: mijenja prethodno uvezene bodove SAMO odabranog kola prema novim rezultatima.</p><button class="danger" data-action="recalculate">OBRACUNAJ BODOVE IZ REZULTATA - KOLO ${state.round}</button></div></div><div class="card"><h2>Klubovi i osnovni bodovi</h2><div class="table-wrap"><table><thead><tr><th>Klub</th><th>Bodovi</th><th>API ID</th><th></th></tr></thead><tbody>${ts.map(t=>`<tr><td><span class="club-inline">${clubBadge(t.name,'sm')}<strong>${esc(t.name)}</strong></span></td><td>${t.base}</td><td>${t.api_id??'-'}</td><td><button data-team="${esc(t.id)}">Uredi</button></td></tr>`).join('')}</tbody></table></div><h3 id="team-form-title">Novi klub</h3><form id="team-form" class="form-grid"><input type="hidden" name="id"><label>Naziv<input name="name" required maxlength="80"></label><label>Osnovni bodovi<input name="base" type="number" min="0" max="100" required></label><label>API ID<input name="apiId" type="number" min="1"></label><label>Boja<input name="color" type="color" value="#37003c"></label><button class="primary">Spremi klub</button></form></div>`;
+ $('#main').innerHTML=hero('Uređivanje lige','Odaberi odjeljak za uređivanje klubova, rokova ili rezultata.')+report+`<div class="actions" style="margin-bottom:16px"><button data-view="admin">Natrag na administraciju</button></div><div class="card" data-admin-panel="round-picker"><h2>Ispravi rezultat iz bilo kojeg kola</h2><p class="fine">Odaberi prethodno ili tekuce kolo, zatim kod utakmice klikni Uredi. Rucni rezultat se ne prepisuje automatski.</p><div class="actions" style="flex-wrap:wrap;gap:6px">${Array.from({length:38},(_,i)=>i+1).map(n=>`<button type="button" class="small-btn ${n===state.round?'primary':'secondary'}" data-round="${n}" aria-pressed="${n===state.round}">${n}. kolo</button>`).join('')}</div></div><div class="card" data-admin-panel="round-deadline"><div class="card-head"><h2>Rok kola ${state.round}</h2><span class="pill">ROK</span></div><form id="deadline-form"><label>Rok<input name="deadline" type="datetime-local" value="${datetimeValue(d.round.deadline)}" required></label><label class="double-toggle"><input type="checkbox" name="reopen"> Potvrdjujem ponovno otvaranje ako je kolo zakljucano.</label><button class="primary">Spremi rok</button></form></div><div class="card" data-admin-panel="round-fixtures"><div class="card-head"><h2>Utakmice kola ${state.round}</h2><span class="pill">${d.fixtures.length}</span></div><div class="table-wrap"><table>${d.fixtures.map(f=>`<tr><td><span class="club-inline">${clubBadge(f.home_name,'sm')}${esc(f.home_name)}</span> - <span class="club-inline">${clubBadge(f.away_name,'sm')}${esc(f.away_name)}</span></td><td>${score(f)}</td><td><button data-fixture="${esc(f.id)}">Uredi</button></td></tr>`).join('')}</table></div><h3 id="fixture-form-title">Nova utakmica</h3><form id="fixture-form" class="form-grid"><input type="hidden" name="id"><label>Domacin<select name="homeId" required>${opt}</select></label><label>Gost<select name="awayId" required>${opt}</select></label><label>Pocetak<input name="kickoff" type="datetime-local"></label><label>Golovi domacin<input name="homeScore" type="number" min="0" max="99"></label><label>Golovi gost<input name="awayScore" type="number" min="0" max="99"></label><label>Status<select name="status">${['SCHEDULED','TIMED','IN_PLAY','PAUSED','FINISHED','POSTPONED','CANCELLED','SUSPENDED','AWARDED'].map(s=>`<option>${s}</option>`).join('')}</select></label><button class="primary">Spremi utakmicu</button><button type="button" data-action="reset-fixture">Nova utakmica</button></form><p class="fine">Rucno spremljen rezultat ne prepisuje nogometni API. Ako je kolo uvezeno sa starim bodovima, oni imaju prednost dok ne pokrenes ponovni obracun.</p><div class="card" data-admin-panel="recalculate-points"><strong>Ponovni obračun bodova</strong><p>Prvo provjeri da utakmice imaju rezultat i status FINISHED, te da je rok kola prosao. Zatim klikni gumb ispod. Pozor: mijenja prethodno uvezene bodove SAMO odabranog kola prema novim rezultatima.</p><button class="danger" data-action="recalculate">OBRACUNAJ BODOVE IZ REZULTATA - KOLO ${state.round}</button></div></div><div class="card" data-admin-panel="clubs"><h2>Klubovi i osnovni bodovi</h2><div class="table-wrap"><table><thead><tr><th>Klub</th><th>Bodovi</th><th>API ID</th><th></th></tr></thead><tbody>${ts.map(t=>`<tr><td><span class="club-inline">${clubBadge(t.name,'sm')}<strong>${esc(t.name)}</strong></span></td><td>${t.base}</td><td>${t.api_id??'-'}</td><td><button data-team="${esc(t.id)}">Uredi</button></td></tr>`).join('')}</tbody></table></div><h3 id="team-form-title">Novi klub</h3><form id="team-form" class="form-grid"><input type="hidden" name="id"><label>Naziv<input name="name" required maxlength="80"></label><label>Osnovni bodovi<input name="base" type="number" min="0" max="100" required></label><label>API ID<input name="apiId" type="number" min="1"></label><label>Boja<input name="color" type="color" value="#37003c"></label><button class="primary">Spremi klub</button></form></div>`;
+ collapseAdminPanels('system');
 }
 
 async function mutation(button,fn){if(state.busy)return;state.busy=true;if(button)button.disabled=true;try{await fn();}catch(e){toast(e.message);}finally{state.busy=false;if(button)button.disabled=false;}}

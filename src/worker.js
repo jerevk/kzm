@@ -140,7 +140,8 @@ async function bootstrap(env,u){
 }
 async function roundData(env,u,n){
  const r=await first(env,'SELECT * FROM rounds WHERE number=?',n);assert(r,'Kolo nije pronadjeno.',404);
- const locked=r.deadline===null||r.deadline<=now();
+ const revealed=r.deadline!==null&&r.deadline<=now();
+ const locked=r.deadline===null||revealed;
  const data=await env.DB.batch([
   stmt(env,'SELECT f.*,h.name AS home_name,a.name AS away_name FROM fixtures f JOIN teams h ON h.id=f.home_id JOIN teams a ON a.id=f.away_id WHERE round_no=? ORDER BY kickoff,f.id',n),
   stmt(env,'SELECT rowid AS source_order,id,name,active FROM players WHERE active=1 ORDER BY rowid'),
@@ -156,8 +157,8 @@ async function roundData(env,u,n){
   const ak=normalize(a.name),bk=normalize(b.name),ai=orderMap.has(ak)?orderMap.get(ak):Number.MAX_SAFE_INTEGER,bi=orderMap.has(bk)?orderMap.get(bk):Number.MAX_SAFE_INTEGER;
   return ai-bi||Number(a.source_order||0)-Number(b.source_order||0);
  });
- const players=sourcePlayers.map(p=>{const pick=pmap.get(p.id);const visible=locked||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
- return {ok:true,round:{...r,locked},fixtures:data[0].results,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,serverTime:now()};
+ const players=sourcePlayers.map(p=>{const pick=pmap.get(p.id);const visible=revealed||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
+ return {ok:true,round:{...r,locked,revealed},fixtures:data[0].results,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,serverTime:now()};
 }
 async function resultsData(env,u,scope){
  const c=scopeRange(scope);
@@ -166,7 +167,7 @@ async function resultsData(env,u,scope){
  WHERE u.active=1
  GROUP BY u.id,u.name,u.active`,c.from,c.to);
  const pays=await all(env,'SELECT player_id,cycle,paid FROM payments');
- const doubles=await all(env,`SELECT p.player_id,p.cycle,p.round_no,p.points,p.points IS NOT NULL AND (p.imported_points IS NOT NULL OR p.match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND(r.deadline<=unixepoch() OR p.player_id=?) ORDER BY p.round_no`,c.from,c.to,u.id);
+ const doubles=await all(env,`SELECT p.player_id,p.cycle,p.round_no,p.points,p.points IS NOT NULL AND (p.imported_points IS NOT NULL OR p.match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND ((r.deadline IS NOT NULL AND r.deadline<=unixepoch()) OR p.player_id=?) ORDER BY p.round_no`,c.from,c.to,u.id);
  const ranked=rank(rows.map(r=>({...r,payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled}))})));
  let cycleInfo=null;
  if(c.id){

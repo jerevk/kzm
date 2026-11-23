@@ -60,11 +60,12 @@ check('DOUBLE imported zero and positive points settle without a fixture',async(
  }
 }finally{x.env.DB.close();}});
 
-check('DOUBLE outcome metadata cannot reveal another player pick before the deadline',async()=>{const x=await fresh();try{
+check('DOUBLE table metadata stays private to its owner before the deadline',async()=>{const x=await fresh();try{
  await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});
  x.env.DB.sqlite.exec("UPDATE picks SET imported_points=8;UPDATE fixtures SET home_score=2,away_score=1,status='FINISHED' WHERE id='f1'");
  const own=await x.call('/results?scope=1',{cookie:x.userCookie}),other=await x.call('/results?scope=1',{cookie:x.adminCookie});
  assert.deepEqual(own.data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:null,settled:false}]);
+ assert.deepEqual(own.data.rows.find(p=>p.id===x.userId).doubles,[1]);
  assert.deepEqual(other.data.rows.find(p=>p.id===x.userId).doubleRounds,[]);
  assert.deepEqual(other.data.rows.find(p=>p.id===x.userId).doubles,[]);
  assert.equal((await x.call('/round/1',{cookie:x.adminCookie})).data.players.find(p=>p.id===x.userId).pick,null);
@@ -72,6 +73,58 @@ check('DOUBLE outcome metadata cannot reveal another player pick before the dead
  const mine=(await x.call('/mine',{cookie:x.userCookie})).data.rows[0];assert.equal(mine.points,null);assert.equal(Boolean(mine.settled),false);
  x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1');
  assert.deepEqual((await x.call('/results?scope=1',{cookie:x.adminCookie})).data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:8,settled:true}]);
+}finally{x.env.DB.close();}});
+
+check('DOUBLE table markers are private until the deadline while past rounds stay public',async()=>{const x=await fresh();try{
+ const created=await x.call('/admin/players',{cookie:x.adminCookie,body:{name:'Other Player',password:USER_PASSWORD}});assert.equal(created.status,201);
+ const observer=await x.call('/login',{body:{name:'Other Player',password:USER_PASSWORD}});assert.equal(observer.status,200);
+ for(const [cookie,round,teamId] of [[x.userCookie,1,'t1'],[x.userCookie,11,'t3'],[x.adminCookie,1,'t2'],[x.adminCookie,11,'t4']])assert.equal((await x.call('/pick',{cookie,body:{round,teamId,double:true}})).status,200);
+ let clock=Math.floor(Date.now()/1000);const deadline=clock+1;
+ x.env.DB.sqlite.function('unixepoch',()=>clock);
+ x.env.DB.sqlite.prepare('UPDATE rounds SET deadline=? WHERE number=1').run(clock-100);
+ x.env.DB.sqlite.prepare('UPDATE rounds SET deadline=? WHERE number=11').run(deadline);
+ x.env.DB.sqlite.exec('UPDATE picks SET imported_points=CASE WHEN round_no=1 THEN 6 ELSE 8 END');
+ const viewers=[[x.userCookie,x.userId],[observer.cookie,created.data.player.id],[x.adminCookie,'owner']];
+ for(const [cookie,viewerId] of viewers){
+  const all=await x.call('/results?scope=all',{cookie}),current=await x.call('/results?scope=2',{cookie});assert.equal(all.status,200);assert.equal(current.status,200);
+  for(const id of [x.userId,'owner']){
+   const past=all.data.rows.find(p=>p.id===id),pending=current.data.rows.find(p=>p.id===id);
+   const privateDouble=id===viewerId?[{cycle:2,round:11,points:null,settled:false}]:[];
+   assert.deepEqual(past.doubleRounds,[{cycle:1,round:1,points:6,settled:true},...privateDouble]);assert.deepEqual(past.doubles,id===viewerId?[1,2]:[1]);assert.equal(past.points,6);
+   assert.deepEqual(pending.doubleRounds,privateDouble);assert.deepEqual(pending.doubles,id===viewerId?[2]:[]);assert.equal(pending.points,0);
+  }
+ }
+ const privatePick=(await x.call('/round/11',{cookie:x.userCookie})).data.myPick;assert.equal(privatePick.is_double,1);
+ const adminPicks=(await x.call('/admin/panel',{cookie:x.adminCookie})).data.picks;assert(adminPicks.some(p=>p.player_id===x.userId&&p.round_no===11&&p.is_double===1));
+ clock=deadline;
+ for(const [cookie] of viewers){
+  const all=await x.call('/results?scope=all',{cookie}),current=await x.call('/results?scope=2',{cookie});assert.equal(all.status,200);assert.equal(current.status,200);
+  for(const id of [x.userId,'owner']){
+   const row=all.data.rows.find(p=>p.id===id),currentRow=current.data.rows.find(p=>p.id===id);
+   assert.deepEqual(row.doubleRounds,[{cycle:1,round:1,points:6,settled:true},{cycle:2,round:11,points:8,settled:true}]);assert.deepEqual(row.doubles,[1,2]);assert.equal(row.points,14);
+   assert.deepEqual(currentRow.doubleRounds,[{cycle:2,round:11,points:8,settled:true}]);assert.deepEqual(currentRow.doubles,[2]);
+  }
+ }
+}finally{x.env.DB.close();}});
+
+check('Missing deadline blocks editing but does not publish other players picks or DOUBLE markers',async()=>{const x=await fresh();try{
+ await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});
+ await x.call('/pick',{cookie:x.adminCookie,body:{round:1,teamId:'t2',double:true}});
+ x.env.DB.sqlite.exec('UPDATE picks SET imported_points=8;UPDATE rounds SET deadline=NULL WHERE number=1');
+ for(const [cookie,viewerId] of [[x.userCookie,x.userId],[x.adminCookie,'owner']]){
+  const r=await x.call('/results?scope=1',{cookie});assert.equal(r.status,200);
+  for(const id of [x.userId,'owner']){
+   const row=r.data.rows.find(p=>p.id===id);assert.deepEqual(row.doubleRounds,id===viewerId?[{cycle:1,round:1,points:null,settled:false}]:[]);assert.deepEqual(row.doubles,id===viewerId?[1]:[]);assert.equal(row.points,0);
+  }
+  const round=await x.call('/round/1',{cookie});assert.equal(round.status,200);assert.equal(round.data.round.locked,true);assert.equal(round.data.round.revealed,false);assert.equal(round.data.doubleAvailable,false);
+  for(const player of round.data.players){if(player.id===viewerId)assert.equal(player.pick.is_double,1);else assert.equal(player.pick,null);}
+  assert.equal(round.data.myPick.is_double,1);assert.equal(round.data.myPick.points,null);
+  assert.deepEqual((await x.call('/stats?scope=1',{cookie})).data.rows,[]);
+ }
+ const mine=(await x.call('/mine',{cookie:x.userCookie})).data.rows[0];assert.equal(mine.is_double,1);assert.equal(mine.points,null);
+ const panel=await x.call('/admin/panel',{cookie:x.adminCookie});assert.equal(panel.data.picks.filter(p=>p.round_no===1&&p.is_double===1).length,2);
+ x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1');
+ const published=await x.call('/round/1',{cookie:x.userCookie});assert.equal(published.data.round.locked,true);assert.equal(published.data.round.revealed,true);assert(published.data.players.every(p=>p.pick?.is_double===1));
 }finally{x.env.DB.close();}});
 check('Cycle winner is declared only after all ten matches of final round are finished',async()=>{const x=await fresh();try{let r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(r.data.cycleInfo.finished,false);const q=x.env.DB.sqlite.prepare("INSERT INTO fixtures(id,round_no,home_id,away_id,kickoff,home_score,away_score,status) VALUES(?,?,?,?,unixepoch()-100,1,0,'FINISHED')");for(let i=0;i<10;i++)q.run('end'+i,10,'t'+(i*2+1),'t'+(i*2+2));r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(r.data.cycleInfo.finished,true);assert(r.data.cycleInfo.winners.length>=1);}finally{x.env.DB.close();}});
 

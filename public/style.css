@@ -274,3 +274,19 @@ dialog{border:0;border-radius:18px;padding:28px;max-width:430px;width:90vw;color
 .back-nav:disabled{cursor:default;opacity:.35}
 .topbar .hamb,.topbar .refresh{flex-shrink:0}
 
+/* Admin controls stay inside explicitly opened sections. */
+.card.admin-panel{padding:0;margin-top:0;overflow:hidden}
+.admin-panel>summary{display:flex;align-items:center;gap:12px;min-height:62px;padding:17px 18px;list-style:none;color:var(--ink);border-radius:inherit;cursor:pointer}
+.admin-panel>summary::-webkit-details-marker{display:none}
+.admin-panel>summary h2{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.4}
+.admin-panel>summary .pill,.admin-panel>summary .badge{flex-shrink:0}
+.admin-panel>summary::after{content:'';width:9px;height:9px;flex:0 0 9px;margin:0 3px 4px 2px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.admin-panel[open]>summary{border-bottom:1px solid var(--line);border-radius:var(--radius) var(--radius) 0 0}
+.admin-panel[open]>summary::after{transform:rotate(225deg);margin-bottom:0}
+.admin-panel>summary:focus-visible{outline:3px solid #6b247a;outline-offset:-4px}
+.admin-panel-body{padding:18px}
+.admin-panel-body>.card-head{justify-content:flex-end;margin-bottom:14px}
+.admin-panel-body>.admin-panel{border:1px solid var(--line);box-shadow:none;margin:16px 0 0}
+:root[data-theme="dark"] .admin-panel>summary:focus-visible{outline-color:var(--cyan)}
+@media(max-width:520px){.admin-panel>summary{padding:15px 14px;gap:9px}.admin-panel>summary h2{font-size:15px}.admin-panel>summary .pill{max-width:45%;white-space:normal;text-align:center}.admin-panel-body{padding:14px}}
+
