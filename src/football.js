@@ -155,7 +155,7 @@ function espnRaceRows(raw,active,observedAt){
   const f=byNames.get(teamKey(hname)+'|'+teamKey(aname));if(!f)continue;
   const hs=home.score==null||home.score===''?null:Number(home.score),as=away.score==null||away.score===''?null:Number(away.score);
   const clockRaw=String(event?.status?.displayClock||c?.status?.displayClock||event?.status?.type?.shortDetail||'').trim();
-  const clockMatch=clockRaw.match(/^(\\d{1,3})(?::\\d{2})?['’]?$/);
+  const clockMatch=clockRaw.match(/^(\d{1,3})(?::\d{2})?['’]?$/);
   const minute=clockMatch&&Number(clockMatch[1])<=130?Number(clockMatch[1]):null;
   out.push({fixture_id:f.id,source:'ESPN',home_name:f.home_name,away_name:f.away_name,home_score:Number.isFinite(hs)?hs:null,away_score:Number.isFinite(as)?as:null,status:espnStatus(c),live_minute:minute,observed_at:observedAt});
  }
