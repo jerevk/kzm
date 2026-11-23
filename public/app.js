@@ -209,7 +209,7 @@ function pickedMatchVisual(p,fx){
  const finished=fx.home_score!==null&&fx.home_score!==undefined&&fx.away_score!==null&&fx.away_score!==undefined;
  return `<div class="pick-match-visual" aria-label="Utakmica ${attr(fx.home_name)} protiv ${attr(fx.away_name)}">
  <div class="pick-match-date">${esc(date)}</div>
- <div class="pick-match-row">${team(fx.home_name,fx.home_id)}<div class="pick-match-center"><span class="pick-match-time">${finished?esc(score(fx)):esc(time)}</span><span class="pick-match-vs">${finished?'REZULTAT':'POČETAK'} · Zagreb</span></div>${team(fx.away_name,fx.away_id)}</div>
+ <div class="pick-match-row">${team(fx.home_name,fx.home_id)}<div class="pick-match-center"><span class="pick-match-time">${finished?esc(score(fx)):esc(time)}</span><span class="pick-match-vs">${finished?'REZULTAT':'POČETAK'}</span></div>${team(fx.away_name,fx.away_id)}</div>
  <div class="pick-match-caption"><span class="pick-match-dot"></span>Označeni grb je tvoj odabir</div>
  </div>`;
 }
