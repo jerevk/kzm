@@ -1,6 +1,6 @@
 {
   "season": 2025,
-  "sourceNote": "Arhiva 2025/26 prepisana iz 4 dostavljene slike; Šizo = Sebastijan Pšihistal; prekrojeni poretci po bodovima; Nekad Robi bez potvrđenog identiteta",
+  "sourceNote": "Arhiva 2025/26 prepisana iz 4 dostavljene slike; Šizo = Sebastijan Pšihistal; Nekad Robi = Robert Šimunović; poredak usklađen prema bodovima.",
   "scopes": {
     "1": [
       {
@@ -364,7 +364,7 @@
       },
       {
         "place": 25,
-        "name": "Nekad Robi",
+        "name": "Robert Šimunović",
         "points": 0
       }
     ],
@@ -630,11 +630,6 @@
         "place": 30,
         "name": "Mirko Vujeva",
         "points": 12
-      },
-      {
-        "place": 31,
-        "name": "Nekad Robi",
-        "points": 0
       }
     ]
   }
