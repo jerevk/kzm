@@ -411,3 +411,60 @@ tr.opposing-pick td:first-child strong{color:#a31332}
 :root[data-theme="dark"] .pick-match-visual{background:linear-gradient(155deg,#211e30,#292337)}
 :root[data-theme="dark"] .pick-match-club{background:#302a3b;border-color:#50445d}
 :root[data-theme="dark"] .pick-match-club.is-picked{border-color:#bb8acf;box-shadow:0 0 0 3px rgba(187,138,207,.14)}
+
+/* Poredak igrača: čitljive pozicije, mobilni pregled bez vodoravnog pomicanja. */
+.ranking-table-wrap{border-radius:12px}
+.ranking-table{border-collapse:separate;border-spacing:0}
+.ranking-table thead th{padding:13px 12px;background:var(--paper);border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.065em}
+.ranking-table tbody td{padding:13px 12px;border-bottom:1px solid var(--line);font-size:13px}
+.ranking-table tbody tr:last-child td{border-bottom:0}
+.ranking-table tbody tr:hover td{background:rgba(112,68,130,.055)}
+.ranking-table tbody tr.me td{background:#eaf9f0}
+.ranking-table tbody tr.me td:first-child{box-shadow:inset 4px 0 #24825c}
+.ranking-table .table-position{flex-direction:row;align-items:center;gap:7px;min-width:0}
+.ranking-table .pos{display:inline-flex;min-width:34px;height:34px;align-items:center;justify-content:center;border-radius:10px;background:rgba(91,42,108,.09);font-size:15px;font-variant-numeric:tabular-nums}
+.ranking-table .pos.champ{background:rgba(190,148,34,.17);color:#986d12}
+.ranking-table .place-change{font-size:11px;padding:3px 5px}
+.ranking-player-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ranking-player-line strong{font-weight:850;line-height:1.3;overflow-wrap:anywhere}
+.ranking-me-label{padding:3px 6px;border-radius:5px;background:#1a714f;color:#fff;font-size:9px;font-weight:900;letter-spacing:.07em}
+.ranking-inactive{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.ranking-payments{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.ranking-payment{display:inline-flex;gap:3px;align-items:center;justify-content:center;min-width:29px;padding:4px 6px;border-radius:6px;border:1px solid var(--line);font-size:10px;font-weight:850;white-space:nowrap}
+.ranking-payment small{font-size:9px;opacity:.75}
+.ranking-payment.is-paid{color:#086642;background:#e1f5e9;border-color:#b7e7ca}
+.ranking-payment.is-unpaid{color:#a12b43;background:#ffebef;border-color:#f5c5d0}
+.ranking-payment.is-unknown{color:var(--muted);background:var(--paper)}
+.ranking-table .ranking-col-points strong{font-size:18px;font-weight:950;font-variant-numeric:tabular-nums}
+.ranking-points-unit{display:none}
+.ranking-mobile-details{display:none}
+:root[data-theme="dark"] .ranking-table thead th{background:#2c2636}
+:root[data-theme="dark"] .ranking-table tbody tr.me td{background:#193a2f}
+:root[data-theme="dark"] .ranking-table tbody tr:hover:not(.me) td{background:#30283e}
+:root[data-theme="dark"] .ranking-table .pos{background:#3c3049}
+:root[data-theme="dark"] .ranking-me-label{background:#237657}
+:root[data-theme="dark"] .ranking-payment.is-paid{background:#163e2f;border-color:#356c53;color:#a9edca}
+:root[data-theme="dark"] .ranking-payment.is-unpaid{background:#42252e;border-color:#734350;color:#ffc1ce}
+@media(max-width:720px){
+ .cycle-results-card{padding:14px 10px}
+ .cycle-results-card .card-head{gap:7px;flex-wrap:wrap}
+ .ranking-table-wrap{overflow-x:visible}
+ .ranking-table{table-layout:fixed;width:100%}
+ .ranking-table thead .ranking-col-double,.ranking-table thead .ranking-col-payment,.ranking-table tbody .ranking-col-double,.ranking-table tbody .ranking-col-payment{display:none}
+ .ranking-table .ranking-col-place{width:70px}
+ .ranking-table .ranking-col-points{width:66px}
+ .ranking-table thead th{padding:10px 5px;font-size:9px}
+ .ranking-table tbody td{padding:13px 5px}
+ .ranking-table .table-position{flex-direction:column;gap:4px}
+ .ranking-table .pos{width:30px;height:30px;min-width:30px}
+ .ranking-player-line strong{font-size:13px}
+ .ranking-table .ranking-col-points strong{font-size:20px}
+ .ranking-points-unit{display:block;color:var(--muted);font-size:9px;font-weight:600}
+ .ranking-mobile-details{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:7px}
+ .ranking-mobile-double,.ranking-mobile-payments{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+ .ranking-mobile-double .double-result{font-size:9px;line-height:1.2;padding:3px 5px}
+ .ranking-mobile-double .muted{display:none}
+ .ranking-mobile-payments .ranking-payment{font-size:9px;min-width:24px;padding:3px 4px}
+ .ranking-mobile-payments .ranking-payment small{font-size:8px}
+ .ranking-note{font-size:11px;line-height:1.4}
+}
