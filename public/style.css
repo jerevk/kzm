@@ -188,3 +188,65 @@ dialog{border:0;border-radius:18px;padding:28px;max-width:430px;width:90vw;color
 :root[data-theme="dark"] :is(button,input,select,textarea):focus-visible{
   outline:2px solid var(--cyan);outline-offset:3px;
 }
+
+/* Clearer controls, status text and table highlights on light surfaces. */
+:root[data-theme="light"] .login-card .eyebrow{color:#006b3c}
+:root[data-theme="light"] .login-divider{color:var(--muted)}
+:root[data-theme="light"] .login-divider:before,
+:root[data-theme="light"] .login-divider:after{background:#c7b7cd}
+:root[data-theme="light"] .registration-box form{border-top-color:#c7b7cd}
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] .team-picker-button,
+:root[data-theme="light"] .team-picker-menu{border-color:#938099}
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder{color:#756778;opacity:1}
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] select:focus,
+:root[data-theme="light"] textarea:focus{border-color:#6b247a}
+:root[data-theme="light"] #theme-select{border-color:#938099}
+:root[data-theme="light"] .primary{color:#241027;box-shadow:inset 0 0 0 1px #006b3c}
+:root[data-theme="light"] .small-btn:not(.primary):not(.secondary):not(.danger):not(.pay),
+:root[data-theme="light"] .actions button:not(.primary):not(.secondary):not(.danger):not(.pay),
+:root[data-theme="light"] button[data-fixture],
+:root[data-theme="light"] button[data-team],
+:root[data-theme="light"] button[data-action="reset-fixture"]{
+  background:#f2eaf5;color:#37003c;border:1px solid #938099;border-radius:10px;
+}
+:root[data-theme="light"] .small-btn.primary,
+:root[data-theme="light"] .actions button.primary{
+  background:var(--green);color:#241027;border-color:#006b3c;box-shadow:none;
+}
+:root[data-theme="light"] .small-btn.secondary,
+:root[data-theme="light"] .actions button.secondary{
+  background:#37003c;color:#fff;border-color:#37003c;
+}
+:root[data-theme="light"] .danger{border-color:#bc5776!important}
+:root[data-theme="light"] .pay.yes{border-color:#42845f}
+:root[data-theme="light"] .pay.no{border-color:#bc5776}
+:root[data-theme="light"] .pay.unknown{color:#5b4860;border-color:#938099}
+:root[data-theme="light"] .green:not(.pill):not(.badge){color:#006b3c}
+:root[data-theme="light"] .pink:not(.pill):not(.badge){color:#b50c48}
+:root[data-theme="light"] th{background:#f2eaf5;color:#5b4860;border-bottom-color:#b2a0ba}
+:root[data-theme="light"] td,
+:root[data-theme="light"] .fixture:not(.my-fixture){border-bottom-color:#c7b7cd}
+:root[data-theme="light"] tr.me td{background:#d7f5e5}
+:root[data-theme="light"] tr.me td:first-child{box-shadow:inset 3px 0 0 #006b3c}
+:root[data-theme="light"] .champ{color:#886300}
+:root[data-theme="light"] .team-picker-option:hover,
+:root[data-theme="light"] .team-picker-option.selected{background:#e8dcee}
+:root[data-theme="light"] .team-picker-option:hover .points,
+:root[data-theme="light"] .team-picker-option.selected .points{color:#5b4860}
+:root[data-theme="light"] .team-picker-option.selected{box-shadow:inset 3px 0 0 #6b247a}
+:root[data-theme="light"] .nav-label,
+:root[data-theme="light"] .nav-footer{color:#e1cfeb;opacity:1}
+:root[data-theme="light"] .drawer label.fine{color:#eaddef}
+:root[data-theme="light"] .drawer-head span{color:#f2e8f6;opacity:1}
+:root[data-theme="light"] .cycle-grid small{opacity:1}
+:root[data-theme="light"] :is(button,input,select,textarea):focus-visible{
+  outline:2px solid #6b247a;outline-offset:3px;
+}
+:root[data-theme="light"] :is(.drawer,.topbar,.hero,.winner-popup,.wake-popup) :is(button,input,select,textarea):focus-visible{
+  outline-color:var(--cyan);
+}
