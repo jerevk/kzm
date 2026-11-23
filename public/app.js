@@ -313,14 +313,23 @@ function opposingPickPlayerIds(d){
  }
  return ids;
 }
+function miniStandingsHtml(d){
+ const all=d.miniStandings||[];
+ const mine=all.findIndex(x=>x.mine);
+ const start=Math.max(0,Math.min(all.length-5,mine-2));
+ const nearby=all.slice(start,start+5);
+ const rows=nearby.map(p=>`<div class="mini-ranking-row ${p.mine?'is-me':''}" aria-label="${attr(p.place+'. mjesto: '+p.name+', '+p.points+' bodova')}"><span class="mini-ranking-place">${Number(p.place)}.</span><span class="mini-ranking-name">${esc(p.name)}${p.mine?' <span class="mini-ranking-you">TI</span>':''}</span><strong class="mini-ranking-points">${Number(p.points)}</strong></div>`).join('');
+ return `<div class="dashboard-tile dashboard-mini-ranking"><div class="mini-ranking-header"><span class="dashboard-label">Mini tablica · ${Number(d.round.cycle)}. krug</span><span class="mini-ranking-hint">Tvoje susjedstvo</span></div><div class="mini-ranking-list">${rows||'<span class="dashboard-caption">Nema poretka.</span>'}</div></div>`;
+}
 function mobileRoundDashboard(d){
  if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return '';
- const me=state.dashboard,points=me?Number(me.points||0):null,place=me?.place??null;
+ const me=state.dashboard,points=me?Number(me.points||0):null;
  return `<section class="mobile-dashboard" aria-label="Moji podaci aktualnog kruga"><div class="dashboard-tiles">
- <div class="dashboard-tile"><span class="dashboard-label">Moje mjesto</span><strong class="dashboard-value">${place!==null?Number(place)+'.':'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
- <div class="dashboard-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
+ ${miniStandingsHtml(d)}
+ <div class="dashboard-tile dashboard-points-tile"><span class="dashboard-label">Moji bodovi</span><strong class="dashboard-value">${points!==null?points:'–'}</strong><span class="dashboard-caption">${Number(d.round.cycle)}. krug</span></div>
  </div></section>`;
 }
+
 function renderRound(d){
  const p=d.myPick,disabled=d.round.locked||state.boot.settings.picks_enabled!=='1';
  let pick='';
@@ -396,6 +405,17 @@ function rankMovementBadge(row,comparison){
  const description=label+'. Prije '+Number(comparison.round)+'. kola: '+row.previousPlace+'. mjesto.';
  return `<span class="place-change ${change>0?'place-change-up':change<0?'place-change-down':'place-change-none'}" title="${attr(description)}" aria-label="${attr(description)}"><span aria-hidden="true">${change>0?'↑':change<0?'↓':'→'}</span>${change===0?'':`<small>${Math.abs(change)}</small>`}</span>`;
 }
+function pickFormDots(form){
+ const entries=(form||[]).filter(x=>x.settled&&x.points!==null&&Number.isFinite(Number(x.points)));
+ if(!entries.length)return '<span class="ranking-form-empty" aria-label="Još nema završenih pickova">–</span>';
+ const dots=entries.map(x=>{
+  const hit=Number(x.points)>0;
+  const kind=hit&&x.double?'double':hit?'hit':'miss';
+  const label=`Kolo ${Number(x.round)}: ${hit?'pogođeno':'promašeno'}${x.double?' (DOUBLE)':''}, ${Number(x.points)} bodova`;
+  return `<span class="ranking-form-dot ranking-form-${kind}" title="${attr(label)}" aria-label="${attr(label)}"></span>`;
+ }).join('');
+ return `<div class="ranking-form-dots" aria-label="Pogodci i promašaji">${dots}</div>`;
+}
 function renderResults(d){
  const cycleBlock=renderCycleWinner(d);
  const comparison=d.comparison?`Pomak u odnosu na poredak prije ${Number(d.comparison.round)}. kola. Tijekom utakmica ažurira se uživo.`:'Pomak će se prikazati nakon prvih obračunatih odabira.';
@@ -405,10 +425,10 @@ function renderResults(d){
   const doubles=(r.doubleRounds||[]).map(x=>doubleBadge(x,`Kolo ${x.round}`)).join(' ')||'<span class="muted">–</span>';
   const payment=paymentHtml(r);
   return `<tr class="${mine?'me':''}"><td class="ranking-col-place"><div class="table-position"><span class="pos ${d.cycleInfo?.finished&&r.place===1?'champ':''}">${r.place}</span>${rankMovementBadge(r,d.comparison)}</div></td>
-  <td class="ranking-col-player"><div class="ranking-player-line"><strong>${esc(r.name)}</strong></div>${r.active?'':'<span class="ranking-inactive">Neaktivan</span>'}<div class="ranking-mobile-details"><span class="ranking-mobile-double">${doubles}</span><span class="ranking-mobile-payments">${payment}</span></div></td>
-  <td class="ranking-col-double">${doubles}</td><td class="ranking-col-payment"><div class="ranking-payments">${payment}</div></td><td class="ranking-col-points points right"><strong>${Number(r.points)}</strong><small class="ranking-points-unit">bod.</small></td></tr>`;
+  <td class="ranking-col-player"><div class="ranking-player-line"><strong>${esc(r.name)}</strong></div>${r.active?'':'<span class="ranking-inactive">Neaktivan</span>'}<div class="ranking-mobile-details"><span class="ranking-mobile-double">${doubles}</span><span class="ranking-mobile-payments">${payment}</span></div><div class="ranking-form-mobile">${pickFormDots(r.form)}</div></td>
+  <td class="ranking-col-form">${pickFormDots(r.form)}</td><td class="ranking-col-double">${doubles}</td><td class="ranking-col-payment"><div class="ranking-payments">${payment}</div></td><td class="ranking-col-points points right"><strong>${Number(r.points)}</strong><small class="ranking-points-unit">bod.</small></td></tr>`;
  }).join('');
- $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><p class="fine ranking-note">${esc(comparison)} Igrači s jednakim brojem bodova dijele mjesto.</p><div class="table-wrap ranking-table-wrap"><table class="ranking-table"><thead><tr><th class="ranking-col-place">Mjesto</th><th class="ranking-col-player">Igrač</th><th class="ranking-col-double">DOUBLE (kolo)</th><th class="ranking-col-payment">Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="ranking-col-points right">Bodovi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+ $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><p class="fine ranking-note">${esc(comparison)} Igrači s jednakim brojem bodova dijele mjesto.</p><div class="table-wrap ranking-table-wrap"><table class="ranking-table"><thead><tr><th class="ranking-col-place">Mjesto</th><th class="ranking-col-player">Igrač</th><th class="ranking-col-form">Forma</th><th class="ranking-col-double">DOUBLE (kolo)</th><th class="ranking-col-payment">Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="ranking-col-points right">Bodovi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
  if(d.cycleInfo?.finished)setTimeout(()=>showCycleWinnerPopup(d),80);
 }
 function renderPersonalStats(rows){
