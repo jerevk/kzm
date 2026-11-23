@@ -446,3 +446,16 @@ check('Frontend exposes admin push diagnostics and per-player test controls',()=
 
 check('Push framework is modularized behind dedicated frontend and backend services',()=>{const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),worker=fs.readFileSync(new URL('../src/worker.js',import.meta.url),'utf8'),push=fs.readFileSync(new URL('../public/js/push.js',import.meta.url),'utf8'),oneSignal=fs.readFileSync(new URL('../src/services/onesignal.js',import.meta.url),'utf8');assert(app.includes("import {createPushManager} from './js/push.js'"));assert(worker.includes("from './services/onesignal.js'"));assert(worker.includes("from './db.js'"));assert(push.includes('export function createPushManager'));assert(oneSignal.includes('export async function pushSend'));});
 
+
+check('Opposing club picks mark both sides only after the round is revealed',()=>{
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const start=app.indexOf('function opposingPickPlayerIds(d)');const end=app.indexOf('function renderRound(d)',start);
+ assert(start>=0&&end>start);
+ const classify=Function(app.slice(start,end)+'; return opposingPickPlayerIds')();
+ const players=[{id:'a',pick:{team_id:'t1'}},{id:'b',pick:{team_id:'t2'}},{id:'c',pick:{team_id:'t1'}},{id:'d',pick:{team_id:'t3'}}];
+ const fixtures=[{home_id:'t1',away_id:'t2'},{home_id:'t3',away_id:'t4'}];
+ assert.deepEqual([...classify({round:{revealed:true},players,fixtures})].sort(),['a','b','c']);
+ assert.deepEqual([...classify({round:{revealed:false},players,fixtures})],[]);
+ assert.deepEqual([...classify({round:{revealed:true},players,fixtures:[]})],[]);
+ assert(app.includes("opponents.has(x.id)?'opposing-pick':''"));
+});
