@@ -137,3 +137,54 @@ dialog{border:0;border-radius:18px;padding:28px;max-width:430px;width:90vw;color
 :root[data-theme="dark"] .empty{color:#bcb7cb}
 :root[data-theme="dark"] #theme-select{background:#312a3d;color:#f1eff8;border-color:#5d526c}
 :root[data-theme="dark"] #theme-select:focus-visible{outline:2px solid #04f5ff;outline-offset:2px}
+
+/* Keep text distinct from bright controls and highlighted rows in dark mode. */
+:root[data-theme="dark"] .primary,
+:root[data-theme="dark"] .hero-badge,
+:root[data-theme="dark"] .pill.green,
+:root[data-theme="dark"] .badge.open,
+:root[data-theme="dark"] .cycle-grid button.active,
+:root[data-theme="dark"] .refresh{color:#241027}
+:root[data-theme="dark"] .cycle-grid small{opacity:1}
+:root[data-theme="dark"] .small-btn:not(.primary):not(.secondary):not(.danger):not(.pay),
+:root[data-theme="dark"] .actions button:not(.primary):not(.secondary):not(.danger):not(.pay),
+:root[data-theme="dark"] button[data-fixture],
+:root[data-theme="dark"] button[data-team],
+:root[data-theme="dark"] button[data-action="reset-fixture"]{
+  background:#393047;color:#f1eff8;border:1px solid #8b789a;border-radius:10px;
+}
+:root[data-theme="dark"] .small-btn.primary,
+:root[data-theme="dark"] .actions button.primary{
+  background:var(--green);color:#241027;border-color:var(--green);
+}
+:root[data-theme="dark"] .small-btn.secondary,
+:root[data-theme="dark"] .actions button.secondary{
+  background:#422652;color:#fff;border-color:#8b789a;
+}
+:root[data-theme="dark"] .pay.yes{background:#173e2d;color:#a5f3c7;border-color:#58a77a}
+:root[data-theme="dark"] .pay.no{background:#492132;color:#ffc4d5;border-color:#b36983}
+:root[data-theme="dark"] .pay.unknown{background:#393047;color:#e1d4ea;border-color:#8b789a}
+:root[data-theme="dark"] .green:not(.pill):not(.badge){color:#8df0bb}
+:root[data-theme="dark"] .pink:not(.pill):not(.badge){color:#ffb2cb}
+:root[data-theme="dark"] .selected-match{background:#30253d;border-color:#aa7abf}
+:root[data-theme="dark"] .selected-match-label{background:#7b468e;color:#fff}
+:root[data-theme="dark"] tr.me td{background:#18392f}
+:root[data-theme="dark"] tr.me td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+:root[data-theme="dark"] th{border-bottom-color:#6a5d78}
+:root[data-theme="dark"] .pick-stat-track{background:#393247}
+:root[data-theme="dark"] .pick-stat-track span{background:linear-gradient(90deg,#b68bca,#dfb7f0)}
+:root[data-theme="dark"] .tags span,
+:root[data-theme="dark"] .not-picked span{background:#452234;color:#ffd5e4}
+:root[data-theme="dark"] .nav-label,
+:root[data-theme="dark"] .nav-footer{color:#c8bed4;opacity:1}
+:root[data-theme="dark"] .drawer-head span{color:#e6dced;opacity:1}
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .team-picker-button,
+:root[data-theme="dark"] .team-picker-menu{border-color:#8b789a}
+:root[data-theme="dark"] #theme-select{border-color:#91809e}
+:root[data-theme="dark"] .team-picker-option.selected{box-shadow:inset 3px 0 0 var(--green)}
+:root[data-theme="dark"] :is(button,input,select,textarea):focus-visible{
+  outline:2px solid var(--cyan);outline-offset:3px;
+}
