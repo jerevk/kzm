@@ -160,11 +160,13 @@ async function roundData(env,u,n){
   return ai-bi||Number(a.source_order||0)-Number(b.source_order||0);
  });
  const players=sourcePlayers.map(p=>{const pick=pmap.get(p.id);const visible=revealed||p.id===u.id;return {id:p.id,name:p.name,chosen:!!pick,mine:p.id===u.id,pick:visible&&pick?pick:null};});
- const myStanding=rank(data[6].results.map(p=>({...p,points:Number(p.points||0)}))).find(p=>p.id===u.id);
+ const cycleStandings=rank(data[6].results.map(p=>({...p,points:Number(p.points||0)})));
+ const myStanding=cycleStandings.find(p=>p.id===u.id);
  const overview=myStanding?{place:myStanding.place,points:Number(myStanding.points||0)}:null;
+ const miniStandings=cycleStandings.map(p=>({id:p.id,name:p.name,place:p.place,points:Number(p.points||0),mine:p.id===u.id}));
  const liveMinutes=new Map(data[7].results.map(x=>[x.key.slice('live-minute:'.length),Number(x.value)]));
  const fixtures=data[0].results.map(f=>({...f,live_minute:liveMinutes.get(String(f.id))??null}));
- return {ok:true,round:{...r,locked,revealed},fixtures,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,overview,serverTime:now()};
+ return {ok:true,round:{...r,locked,revealed},fixtures,players,available:locked?[]:data[3].results,doubleAvailable:!locked&&data[4].results[0].count===0,myPick:pmap.get(u.id)||null,overview,miniStandings,serverTime:now()};
 }
 async function resultsData(env,u,scope){
  const c=scopeRange(scope);
@@ -187,11 +189,21 @@ async function resultsData(env,u,scope){
  const previousPlaces=new Map(comparison?rank(rows.map(r=>({id:r.id,name:r.name,points:r.previous_points}))).map(r=>[r.id,r.place]):[]);
  const pays=await all(env,'SELECT player_id,cycle,paid FROM payments');
  const doubles=await all(env,`SELECT p.player_id,p.cycle,p.round_no,p.points,p.points IS NOT NULL AND (p.imported_points IS NOT NULL OR p.match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND ((r.deadline IS NOT NULL AND r.deadline<=unixepoch()) OR p.player_id=?) ORDER BY p.round_no`,c.from,c.to,u.id);
+ const recentPicks=await all(env,`SELECT s.player_id,s.round_no,s.points,s.is_double,
+  (s.points IS NOT NULL AND (s.imported_points IS NOT NULL OR s.match_status IN('FINISHED','AWARDED'))) AS settled
+  FROM pick_scores s JOIN rounds r ON r.number=s.round_no
+  WHERE s.round_no BETWEEN ? AND ? AND r.deadline IS NOT NULL AND r.deadline<=unixepoch()
+  ORDER BY s.round_no`,c.from,c.to);
+ const formByPlayer=new Map();
+ for(const p of recentPicks){const key=String(p.player_id);if(!formByPlayer.has(key))formByPlayer.set(key,[]);
+  formByPlayer.get(key).push({round:Number(p.round_no),points:p.points==null?null:Number(p.points),double:!!p.is_double,settled:!!p.settled});}
+
  const ranked=rank(rows.map(({previous_points,comparison_round,...r})=>({
   ...r,
   payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),
   doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),
-  doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled}))
+  doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled})),
+  form:formByPlayer.get(String(r.id))||[]
  }))).map(r=>{const previousPlace=previousPlaces.get(r.id)??null;return {...r,previousPlace,placeChange:previousPlace===null?null:previousPlace-r.place};});
  let cycleInfo=null;
  if(c.id){
