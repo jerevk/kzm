@@ -452,12 +452,12 @@ check('Opposing club picks mark both sides only after the round is revealed',()=
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  const start=app.indexOf('function opposingPickPlayerIds(d)');const end=app.indexOf('function renderRound(d)',start);
  assert(start>=0&&end>start);
- const classify=Function(app.slice(start,end)+'; return opposingPickPlayerIds')();
+ const classify=Function('state',app.slice(start,end)+'; return opposingPickPlayerIds')({boot:{user:{id:'a'}}});
  const players=[{id:'a',pick:{team_id:'t1'}},{id:'b',pick:{team_id:'t2'}},{id:'c',pick:{team_id:'t1'}},{id:'d',pick:{team_id:'t3'}}];
  const fixtures=[{home_id:'t1',away_id:'t2'},{home_id:'t3',away_id:'t4'}];
- assert.deepEqual([...classify({round:{revealed:true},players,fixtures})].sort(),['a','b','c']);
- assert.deepEqual([...classify({round:{revealed:false},players,fixtures})],[]);
- assert.deepEqual([...classify({round:{revealed:true},players,fixtures:[]})],[]);
+ assert.deepEqual([...classify({round:{revealed:true},players,fixtures,myPick:{team_id:'t1'}})].sort(),['a','b']);
+ assert.deepEqual([...classify({round:{revealed:false},players,fixtures,myPick:{team_id:'t1'}})],[]);
+ assert.deepEqual([...classify({round:{revealed:true},players,fixtures:[],myPick:{team_id:'t1'}})],[]);
  assert(app.includes("opponents.has(x.id)?'opposing-pick':''"));
 });
 
@@ -467,12 +467,12 @@ check('Opposing picks highlight only after revealing the round',()=>{
  const start=app.indexOf('function opposingPickPlayerIds(d){'),end=app.indexOf('function renderRound(d)',start);
  assert(start>=0&&end>start);
  const {runInNewContext}=vm;
- const fn=runInNewContext(app.slice(start,end)+';opposingPickPlayerIds');
- const d={round:{revealed:true},fixtures:[{home_id:'arsenal',away_id:'chelsea'},{home_id:'city',away_id:'villa'}],players:[
+ const fn=runInNewContext(app.slice(start,end)+';opposingPickPlayerIds',{state:{boot:{user:{id:'a'}}}});
+ const d={myPick:{team_id:'arsenal'},round:{revealed:true},fixtures:[{home_id:'arsenal',away_id:'chelsea'},{home_id:'city',away_id:'villa'}],players:[
   {id:'a',pick:{team_id:'arsenal'}},{id:'b',pick:{team_id:'chelsea'}},{id:'c',pick:{team_id:'arsenal'}},
   {id:'d',pick:{team_id:'city'}},{id:'e',pick:{team_id:'other'}},{id:'f',pick:null}
  ]};
- assert.deepEqual([...fn(d)].sort(),['a','b','c']);
+ assert.deepEqual([...fn(d)].sort(),['a','b']);
  d.round.revealed=false;
  assert.deepEqual([...fn(d)],[]);
  assert(app.includes('opposing-pick-label'));
@@ -489,11 +489,11 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(app.includes("if(Number(d?.round?.number)!==Number(state.boot?.currentRound))return ''"));
  assert(app.includes("dashboard-deadline"));
  assert(app.includes("if(tab==='more'){setMenu("));
- assert(app.includes("state.scope='all';await load('results')"));
+ assert(app.includes("state.scope=String(state.boot.rounds.find(r=>Number(r.number)===Number(state.boot.currentRound))?.cycle||1);await load('results')"));
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261123-mobile1'));
+ assert(html.includes('/app.js?v=20261123-private-rivals2'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
