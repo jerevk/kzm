@@ -541,3 +541,27 @@ check('Rezultati.com is recorded during a live match and takes over if ESPN has 
   assert.equal(x.env.DB.sqlite.prepare("SELECT value FROM meta WHERE key='live-minute:f1'").get().value,'67');
  }finally{globalThis.fetch=previous;x.env.DB.close();}
 });
+
+
+check('Admin compares matching ESPN and Rezultati.com score snapshots for the same live fixture',async()=>{
+ const x=await fresh(),old=globalThis.fetch,urls=[];
+ try{
+  x.env.DB.sqlite.exec("UPDATE fixtures SET kickoff=unixepoch()-60,status='SCHEDULED',manual_score=0 WHERE id='f1';");
+  globalThis.fetch=async url=>{
+   const u=String(url);urls.push(u);
+   if(u.includes('site.api.espn.com'))return Response.json({events:[{competitions:[{competitors:[{homeAway:'home',score:'1',team:{displayName:'Klub 1'}},{homeAway:'away',score:'0',team:{displayName:'Klub 2'}}],status:{type:{name:'STATUS_IN_PROGRESS',state:'in'}}}]}]});
+   if(u.includes('m.rezultati.com'))return new Response('<h4>ENGLESKA: Premier League</h4><span class="live">48&#39;</span>Klub 1 - Klub 2 <a class="live">1-0</a><br /><h4>HRVATSKA: SuperSport HNL</h4>',{status:200});
+   throw new Error('Unexpected source '+u);
+  };
+  const sync=await syncFootball(x.env,false);
+  assert.equal(sync.source,'ESPN');
+  assert.equal(urls.length,2);
+  const both=x.env.DB.sqlite.prepare("SELECT source,home_score,away_score,observed_at FROM source_race WHERE fixture_id='f1' ORDER BY source").all();
+  assert.deepEqual(both.map(z=>z.source),['ESPN','Rezultati.com']);
+  assert(both.every(z=>z.home_score===1&&z.away_score===0&&z.observed_at>0));
+  const admin=await x.call('/admin/panel',{cookie:x.adminCookie});
+  assert.equal(admin.status,200);
+  assert(admin.data.sourceRace.some(z=>z.source==='Rezultati.com'));
+  assert.equal(typeof admin.data.sourceRaceRezultatiError,'string');
+ }finally{globalThis.fetch=old;x.env.DB.close();}
+});
