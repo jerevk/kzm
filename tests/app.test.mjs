@@ -1,3 +1,4 @@
+import * as vm from 'node:vm';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import worker,{processPush} from '../src/worker.js';import {fresh,rawSnapshot,ADMIN_PASSWORD,USER_PASSWORD} from './helpers.mjs';
 import {scorePick,cycleFor,rank,normalize} from '../src/rules.js';import {passwordHash} from '../src/auth.js';import {prepareSnapshot} from '../scripts/prepare-data.mjs';import {mapMatches,syncFootball,shouldPollFixture,testEspnSource} from '../src/football.js';
@@ -458,4 +459,22 @@ check('Opposing club picks mark both sides only after the round is revealed',()=
  assert.deepEqual([...classify({round:{revealed:false},players,fixtures})],[]);
  assert.deepEqual([...classify({round:{revealed:true},players,fixtures:[]})],[]);
  assert(app.includes("opponents.has(x.id)?'opposing-pick':''"));
+});
+
+check('Opposing picks highlight only after revealing the round',()=>{
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
+ const start=app.indexOf('function opposingPickPlayerIds(d){'),end=app.indexOf('function renderRound(d)',start);
+ assert(start>=0&&end>start);
+ const {runInNewContext}=vm;
+ const fn=runInNewContext(app.slice(start,end)+';opposingPickPlayerIds');
+ const d={round:{revealed:true},fixtures:[{home_id:'arsenal',away_id:'chelsea'},{home_id:'city',away_id:'villa'}],players:[
+  {id:'a',pick:{team_id:'arsenal'}},{id:'b',pick:{team_id:'chelsea'}},{id:'c',pick:{team_id:'arsenal'}},
+  {id:'d',pick:{team_id:'city'}},{id:'e',pick:{team_id:'other'}},{id:'f',pick:null}
+ ]};
+ assert.deepEqual([...fn(d)].sort(),['a','b','c']);
+ d.round.revealed=false;
+ assert.deepEqual([...fn(d)],[]);
+ assert(app.includes('opposing-pick-label'));
+ assert(css.includes('tr.me.opposing-pick td'));
 });
