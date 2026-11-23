@@ -310,7 +310,6 @@ function opposingPickPlayerIds(d){
   const myTeam=String(d.myPick.team_id);
   const opponents=myTeam===String(fixture.home_id)?away:home;
   for(const id of opponents)ids.add(id);
-  ids.add(state.boot.user.id);
  }
  return ids;
 }
