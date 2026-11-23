@@ -467,7 +467,7 @@ function sourceRaceHtml(d){
  }).join('');
  const status=Number(d.sourceRaceActive||0)>0?'LIVE PRAĆENJE':'ČEKA UTAKMICU';
  return `<div class="card" data-admin-panel="source-race"><div class="card-head"><h2>ESPN vs. Rezultati.com</h2><span class="pill ${Number(d.sourceRaceActive||0)>0?'green':''}">${status}</span></div>
- <p class="fine">Oba izvora provjeravaju se tijekom utakmice. Prikazano vrijeme je trenutak kada je KZM prvi put zaprimio pojedini rezultat, a ne službeno vrijeme gola. ESPN ima prednost pri upisu u aplikaciju; Rezultati.com je rezervni izvor. Jednakost znači isti zabilježeni sekund.</p>
+ <p class="fine">Oba izvora provjeravaju se tijekom utakmice. Prikazano vrijeme je trenutak kada je KZM prvi put zaprimio pojedini rezultat, a ne službeno vrijeme gola. KZM preuzima prvu korisnu promjenu rezultata od bržeg izvora. Ako prvi izvor još prikazuje stari rezultat, koristi promjenu drugog. Jednakost znači isti zabilježeni sekund.</p>
  <div class="source-race-totals"><span><strong>ESPN prvi: ${espnWins}</strong></span><span><strong>Rezultati.com prvi: ${rezultatiWins}</strong></span><span>Istodobno: ${ties}</span></div>
  ${d.sourceRaceEspnError?`<div class="error">ESPN: ${esc(d.sourceRaceEspnError)}</div>`:''}
  ${d.sourceRaceRezultatiError?`<div class="error">Rezultati.com: ${esc(d.sourceRaceRezultatiError)}</div>`:''}
