@@ -224,7 +224,7 @@ async function adminPanel(env){
   sourceRace:race.rows,
   sourceRaceActive:race.active,
   sourceRaceEspnError:race.espnError,
-  sourceRaceFootballError:race.footballError
+  sourceRaceRezultatiError:race.rezultatiError
  };
 }
 async function standings(env){
