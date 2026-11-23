@@ -8,7 +8,8 @@ const aliases={
  'wolverhampton wanderers':'wolves','wolverhampton':'wolves','nottingham forest':'nottm forest',
  'west ham united':'west ham','sunderland afc':'sunderland'
 };
-const LIVE_WINDOW_SECONDS=4*60*60;
+const LIVE_WINDOW_SECONDS=3*60*60; // Includes stoppage and extra time, plus a brief final-result check.
+const SCHEDULE_REFRESH_SECONDS=7*24*60*60;
 const LIVE_MIN_INTERVAL_SECONDS=20;
 const TERMINAL_STATUSES=['FINISHED','AWARDED','POSTPONED','CANCELLED'];
 
@@ -183,9 +184,12 @@ async function saveFootball(env,s,teams,matches,{manual=false}={}){
   s(`INSERT INTO fixtures(id,round_no,home_id,away_id,kickoff,home_score,away_score,status,api_id)
  SELECT json_extract(value,'$.id'),json_extract(value,'$.round_no'),json_extract(value,'$.home_id'),json_extract(value,'$.away_id'),json_extract(value,'$.kickoff'),json_extract(value,'$.home_score'),json_extract(value,'$.away_score'),json_extract(value,'$.status'),json_extract(value,'$.api_id') FROM json_each(?) WHERE true
  ON CONFLICT(round_no,home_id,away_id) DO UPDATE SET kickoff=excluded.kickoff,api_id=excluded.api_id,
- home_score=CASE WHEN fixtures.manual_score=1 THEN fixtures.home_score ELSE excluded.home_score END,
- away_score=CASE WHEN fixtures.manual_score=1 THEN fixtures.away_score ELSE excluded.away_score END,
- status=CASE WHEN fixtures.manual_score=1 THEN fixtures.status ELSE excluded.status END`,JSON.stringify(fixtures)),
+ home_score=fixtures.home_score,
+ away_score=fixtures.away_score,
+ status=CASE WHEN fixtures.manual_score=1 THEN fixtures.status
+             WHEN excluded.status IN('POSTPONED','CANCELLED') AND fixtures.status NOT IN('FINISHED','AWARDED') THEN excluded.status
+             WHEN fixtures.status IN('POSTPONED','CANCELLED') AND excluded.status NOT IN('POSTPONED','CANCELLED') THEN 'SCHEDULED'
+             ELSE fixtures.status END`,JSON.stringify(fixtures)),
   s(`UPDATE rounds SET deadline=(SELECT MIN(kickoff)-7200 FROM fixtures WHERE round_no=rounds.number AND status NOT IN('CANCELLED','POSTPONED')) WHERE manual_deadline=0 AND(deadline IS NULL OR deadline>unixepoch()) AND EXISTS(SELECT 1 FROM fixtures WHERE round_no=rounds.number AND kickoff IS NOT NULL AND status NOT IN('CANCELLED','POSTPONED'))`),
   s("INSERT INTO meta(key,value) VALUES('last_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)),
   s("INSERT INTO meta(key,value) VALUES('last_sync_error','') ON CONFLICT(key) DO UPDATE SET value=''"),
@@ -247,22 +251,25 @@ export async function syncFootball(env,manual=false){
   const teams=(await s('SELECT * FROM teams').all()).results;
   assert(teams.length===20,'Prvo uvezi 20 klubova i njihove stvarne osnovne bodove.');
 
-  if(manual){
-   assert(env.FOOTBALL_DATA_API_KEY,'API kljuc nije postavljen. Koristi npm run football-key.');
-   const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first();
-   assert(!backoff||Number(backoff.value)<=now,'Football-data odgoda je aktivna. Pokusaj kasnije.');
-   const last=await s("SELECT value FROM meta WHERE key='last_manual_sync'").first();
-   assert(!last||now-Number(last.value)>=120,'Rucno osvjezavanje dostupno je svake dvije minute.');
-   const raw=await fetchJson(env,`https://api.football-data.org/v4/competitions/PL/matches?season=${Number(env.SEASON||2026)}`,s,now);
-   const fixtures=await saveFootball(env,s,teams,raw.matches,{manual:true});
-   await env.DB.batch([
-    s("INSERT INTO meta(key,value) VALUES('last_manual_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)),
-    s("INSERT INTO meta(key,value) VALUES('last_sync_source','football-data.org') ON CONFLICT(key) DO UPDATE SET value=excluded.value"),
-    s("INSERT INTO meta(key,value) VALUES('api_backoff','0') ON CONFLICT(key) DO UPDATE SET value='0'")
-   ]);
-   return {ok:true,mode:'manual-full',fixtures:fixtures.length,lastSync:now,source:'football-data.org',notice:'Puni raspored je osvjezen. Povijesni bodovi i rucno zasticeni rezultati ostali su sacuvani.'};
+  const lastScheduleRow=await s("SELECT value FROM meta WHERE key='last_schedule_sync'").first();
+  const scheduleDue=manual||!lastScheduleRow||now-Number(lastScheduleRow.value)>=SCHEDULE_REFRESH_SECONDS;
+  if(scheduleDue){
+   if(!env.FOOTBALL_DATA_API_KEY){
+    if(manual)assert(false,'API kljuc nije postavljen.');
+   }else{
+    const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first();
+    if(!backoff||Number(backoff.value)<=now){
+     const raw=await fetchJson(env,`https://api.football-data.org/v4/competitions/PL/matches?season=${Number(env.SEASON||2026)}`,s,now);
+     const fixtures=await saveFootball(env,s,teams,raw.matches,{manual});
+     await env.DB.batch([
+      s("INSERT INTO meta(key,value) VALUES('last_schedule_sync',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)),
+      s("INSERT INTO meta(key,value) VALUES('last_sync_source','football-data.org') ON CONFLICT(key) DO UPDATE SET value=excluded.value"),
+      s("INSERT INTO meta(key,value) VALUES('api_backoff','0') ON CONFLICT(key) DO UPDATE SET value='0'")
+     ]);
+     if(manual)return {ok:true,mode:'manual-full',fixtures:fixtures.length,lastSync:now,source:'football-data.org'};
+    }else if(manual)assert(false,'Football-data odgoda je aktivna. Pokusaj kasnije.');
+   }
   }
-
   const active=await activeFixtures(s,now);
   if(!active.length)return {ok:true,mode:'idle',skipped:true,fixtures:0,lastSync:null,notice:'Nema utakmica koje su trenutno u vremenu igranja; vanjski live izvori nisu pozvani.'};
   const lastLive=await s("SELECT value FROM meta WHERE key='last_live_poll'").first();
@@ -270,12 +277,10 @@ export async function syncFootball(env,manual=false){
   await s("INSERT INTO meta(key,value) VALUES('last_live_poll',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(now)).run();
 
   await ensureSourceRace(env);
-  const ids=active.filter(f=>Number(f.api_id)>0).map(f=>Number(f.api_id));
-  const backoff=await s("SELECT value FROM meta WHERE key='api_backoff'").first(),backoffUntil=Number(backoff?.value||0);
-  const fdAllowed=!!env.FOOTBALL_DATA_API_KEY&&ids.length>0&&backoffUntil<=now;
+  // During matches, ESPN supplies live scores. Football-data is only queried for weekly schedule changes.
   const espnPromise=fetchEspn(now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)}));
-  const fdPromise=fdAllowed?fetchJson(env,'https://api.football-data.org/v4/matches?ids='+encodeURIComponent(ids.join(','))+'&limit=20',s,now).then(data=>({data,observedAt:Math.floor(Date.now()/1000)})):Promise.resolve(null);
-  const [espnResult,fdResult]=await Promise.allSettled([espnPromise,fdPromise]);
+  const [espnResult,fdResult]=await Promise.allSettled([espnPromise,Promise.resolve(null)]);
+  const ids=[];const backoffUntil=0;
 
   let espnRows=[],fdRows=[],espnApplied=new Set(),fdApplied=new Set();
   if(espnResult.status==='fulfilled'){
@@ -320,7 +325,7 @@ export async function syncFootball(env,manual=false){
   }else if(espnResult.status==='rejected'&&fdResult.status==='rejected'){
    throw new Error('Nijedan live izvor nije dostupan: '+String(espnResult.reason?.message||'ESPN greska')+'; '+String(fdResult.reason?.message||'football-data greska'));
   }
-  return {ok:true,mode:'live-active',fixtures:applied.size,activeFixtures:active.length,requestedIds:ids,lastSync:applied.size?now:null,source,footballDataBackoff:backoffUntil>now,notice:applied.size?`Live rezultat osvjezen preko ${source}. ESPN ima prednost za live rezultat; football-data.org ostaje fallback i izvor punog rasporeda.`:'Live izvori su provjereni, ali nisu vratili novu aktivnu promjenu.'};
+  return {ok:true,mode:'live-active',fixtures:applied.size,activeFixtures:active.length,requestedIds:ids,lastSync:applied.size?now:null,source,footballDataBackoff:backoffUntil>now,notice:applied.size?`Live rezultat osvjezen preko ${source}. Football-data.org koristi se samo za tjednu provjeru rasporeda.`:'Live izvori su provjereni, ali nisu vratili novu aktivnu promjenu.'};
  }catch(e){
   await s("INSERT INTO meta(key,value) VALUES('last_sync_error',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(e.message||e).slice(0,500)).run();
   throw e;
