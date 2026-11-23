@@ -18,7 +18,61 @@ check('Concurrent same-team requests cannot both succeed',async()=>{const x=awai
 check('Past deadline, null deadline and disabled picks fail closed',async()=>{const x=await fresh();try{for(const sql of ["UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1","UPDATE rounds SET deadline=NULL WHERE number=1"]){x.env.DB.sqlite.exec(sql);assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:false}})).status,423);}x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()+3600;UPDATE meta SET value='0' WHERE key='picks_enabled'");assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:false}})).status,423);}finally{x.env.DB.close();}});
 check('Invalid round, boolean, unknown team are rejected',async()=>{const x=await fresh();try{for(const body of [{round:39,teamId:'t1',double:false},{round:1,teamId:'t1',double:'false'},{round:1,teamId:'bad',double:false}])assert.equal((await x.call('/pick',{cookie:x.userCookie,body})).status,400);}finally{x.env.DB.close();}});
 check('Closed round reveals saved pick and computes points',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1;UPDATE fixtures SET home_score=2,away_score=1,status='FINISHED' WHERE id='f1'");const r=await x.call('/round/1',{cookie:x.adminCookie});assert.equal(r.data.players.find(p=>p.id===x.userId).pick.points,4);const res=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(res.data.rows.find(p=>p.id===x.userId).points,4);assert.equal((await x.call('/stats?scope=1',{cookie:x.userCookie})).data.rows[0].count,1);}finally{x.env.DB.close();}});
-check('Results identify the exact round where DOUBLE was used',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1");const r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.deepEqual(r.data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1}]);}finally{x.env.DB.close();}});
+check('Results identify the exact round where DOUBLE was used',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1");const r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.deepEqual(r.data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:null,settled:false}]);}finally{x.env.DB.close();}});
+
+check('DOUBLE outcome metadata uses each pick result and only settles final matches',async()=>{const x=await fresh();try{
+ assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}})).status,200);
+ assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:2,teamId:'t3',double:false}})).status,200);
+ x.env.DB.sqlite.exec("INSERT INTO fixtures(id,round_no,home_id,away_id,home_score,away_score,status) VALUES('f2',2,'t3','t4',1,0,'FINISHED');UPDATE rounds SET deadline=unixepoch()-1 WHERE number IN(1,2)");
+ const cases=[
+  ['home win','t1','t2','FINISHED',2,1,4,true],
+  ['home loss','t1','t2','FINISHED',0,1,0,true],
+  ['home draw','t1','t2','FINISHED',1,1,0,true],
+  ['away win','t2','t1','FINISHED',1,2,6,true],
+  ['away draw','t2','t1','FINISHED',1,1,2,true],
+  ['awarded win','t1','t2','AWARDED',2,0,4,true],
+  ['live lead','t1','t2','IN_PLAY',2,1,4,false],
+  ['live zero','t1','t2','PAUSED',0,1,0,false],
+  ['missing scores','t1','t2','FINISHED',null,null,null,false],
+  ['postponed','t1','t2','POSTPONED',null,null,null,false],
+  ['suspended','t1','t2','SUSPENDED',2,1,null,false]
+ ];
+ for(const [name,home,away,status,hs,as,points,settled] of cases){
+  x.env.DB.sqlite.prepare("UPDATE fixtures SET home_id=?,away_id=?,status=?,home_score=?,away_score=? WHERE id='f1'").run(home,away,status,hs,as);
+  const round=await x.call('/round/1',{cookie:x.userCookie}),mine=await x.call('/mine',{cookie:x.userCookie}),results=await x.call('/results?scope=1',{cookie:x.userCookie}),admin=await x.call('/admin/panel',{cookie:x.adminCookie});
+  for(const response of [round,mine,results,admin])assert.equal(response.status,200,name);
+  const standings=results.data.rows.find(p=>p.id===x.userId);
+  const picks=[round.data.myPick,round.data.players.find(p=>p.id===x.userId).pick,mine.data.rows.find(p=>p.round_no===1),standings.doubleRounds[0],admin.data.picks.find(p=>p.player_id===x.userId&&p.round_no===1)];
+  for(const pick of picks){assert.equal(pick.points,points,name);assert.equal(Boolean(pick.settled),settled,name);}
+  assert.equal(standings.points,(points??0)+4,name+' preserves unrelated round points');
+ }
+}finally{x.env.DB.close();}});
+
+check('DOUBLE imported zero and positive points settle without a fixture',async()=>{const x=await fresh();try{
+ await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});
+ x.env.DB.sqlite.exec("DELETE FROM fixtures WHERE id='f1';UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1");
+ for(const points of [null,0,10]){
+  x.env.DB.sqlite.prepare('UPDATE picks SET imported_points=? WHERE player_id=? AND round_no=1').run(points,x.userId);
+  const round=await x.call('/round/1',{cookie:x.userCookie}),mine=await x.call('/mine',{cookie:x.userCookie}),results=await x.call('/results?scope=1',{cookie:x.userCookie}),admin=await x.call('/admin/panel',{cookie:x.adminCookie});
+  for(const response of [round,mine,results,admin])assert.equal(response.status,200);
+  const picks=[round.data.myPick,mine.data.rows[0],results.data.rows.find(p=>p.id===x.userId).doubleRounds[0],admin.data.picks.find(p=>p.player_id===x.userId)];
+  for(const pick of picks){assert.equal(pick.points,points);assert.equal(Boolean(pick.settled),points!==null);}
+ }
+}finally{x.env.DB.close();}});
+
+check('DOUBLE outcome metadata cannot reveal another player pick before the deadline',async()=>{const x=await fresh();try{
+ await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});
+ x.env.DB.sqlite.exec("UPDATE picks SET imported_points=8;UPDATE fixtures SET home_score=2,away_score=1,status='FINISHED' WHERE id='f1'");
+ const own=await x.call('/results?scope=1',{cookie:x.userCookie}),other=await x.call('/results?scope=1',{cookie:x.adminCookie});
+ assert.deepEqual(own.data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:null,settled:false}]);
+ assert.deepEqual(other.data.rows.find(p=>p.id===x.userId).doubleRounds,[]);
+ assert.deepEqual(other.data.rows.find(p=>p.id===x.userId).doubles,[]);
+ assert.equal((await x.call('/round/1',{cookie:x.adminCookie})).data.players.find(p=>p.id===x.userId).pick,null);
+ const myPick=(await x.call('/round/1',{cookie:x.userCookie})).data.myPick;assert.equal(myPick.points,null);assert.equal(Boolean(myPick.settled),false);
+ const mine=(await x.call('/mine',{cookie:x.userCookie})).data.rows[0];assert.equal(mine.points,null);assert.equal(Boolean(mine.settled),false);
+ x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number=1');
+ assert.deepEqual((await x.call('/results?scope=1',{cookie:x.adminCookie})).data.rows.find(p=>p.id===x.userId).doubleRounds,[{cycle:1,round:1,points:8,settled:true}]);
+}finally{x.env.DB.close();}});
 check('Cycle winner is declared only after all ten matches of final round are finished',async()=>{const x=await fresh();try{let r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(r.data.cycleInfo.finished,false);const q=x.env.DB.sqlite.prepare("INSERT INTO fixtures(id,round_no,home_id,away_id,kickoff,home_score,away_score,status) VALUES(?,?,?,?,unixepoch()-100,1,0,'FINISHED')");for(let i=0;i<10;i++)q.run('end'+i,10,'t'+(i*2+1),'t'+(i*2+2));r=await x.call('/results?scope=1',{cookie:x.userCookie});assert.equal(r.data.cycleInfo.finished,true);assert(r.data.cycleInfo.winners.length>=1);}finally{x.env.DB.close();}});
 
 check('Future picks do not influence results or club statistics',async()=>{const x=await fresh();try{await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});x.env.DB.sqlite.exec("UPDATE picks SET imported_points=99");assert.equal((await x.call('/results',{cookie:x.adminCookie})).data.rows.find(p=>p.id===x.userId).points,0);assert.equal((await x.call('/stats',{cookie:x.adminCookie})).data.rows.length,0);}finally{x.env.DB.close();}});
@@ -251,3 +305,4 @@ check('Per-player push test reports missing valid OneSignal subscription instead
 check('Frontend exposes admin push diagnostics and per-player test controls',()=>{const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('data-action="push-diagnostics"'));assert(app.includes('data-push-test-player'));assert(app.includes("api('/admin/push-diagnostics')"));assert(app.includes("api('/admin/push-test-player'"));});
 
 check('Push framework is modularized behind dedicated frontend and backend services',()=>{const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),worker=fs.readFileSync(new URL('../src/worker.js',import.meta.url),'utf8'),push=fs.readFileSync(new URL('../public/js/push.js',import.meta.url),'utf8'),oneSignal=fs.readFileSync(new URL('../src/services/onesignal.js',import.meta.url),'utf8');assert(app.includes("import {createPushManager} from './js/push.js'"));assert(worker.includes("from './services/onesignal.js'"));assert(worker.includes("from './db.js'"));assert(push.includes('export function createPushManager'));assert(oneSignal.includes('export async function pushSend'));});
+

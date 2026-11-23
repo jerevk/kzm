@@ -21,7 +21,7 @@ function clubBadgeUrl(name){const t=teamByName(name);const id=Number(t?.api_id||
 function clubBadge(name,extra=''){const url=clubBadgeUrl(name);return url?`<img class="club-badge ${extra}" src="${attr(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`:'';}
 function teamColor(name){return teamByName(name)?.color||'#37003C';}
 function teamPill(name){return `<span class="team-pill" style="background:${attr(teamColor(name))}">${clubBadge(name)}${esc(name)}</span>`;}
-const hero=(title,sub,badge='')=>`<div class="hero"><div><span class="eyebrow">KO ZADNJI MAGARAC / ${state.selectedSeason||2026}-${Number(state.selectedSeason||2026)+1}</span><h2>${esc(title)}</h2><p>${esc(sub)}</p></div>${badge?`<span class="hero-badge">${esc(badge)}</span>`:''}</div>`;
+const hero=(title,sub,badge='',season=state.selectedSeason||2026)=>`<div class="hero"><div><span class="eyebrow">KO ZADNJI MAGARAC / ${Number(season)}-${Number(season)+1}</span><h2>${esc(title)}</h2><p>${esc(sub)}</p></div>${badge?`<span class="hero-badge">${esc(badge)}</span>`:''}</div>`;
 
 async function api(path,body){
  const start=performance.now(),options={credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(25000)};
@@ -56,7 +56,7 @@ function nav(){
  const archived=Number(state.selectedSeason)!==Number(state.boot.season);
  const seasonSelect=$('#season-select');if(seasonSelect)seasonSelect.value=String(state.selectedSeason);
  const currentNav=$('#current-season-nav');if(currentNav)currentNav.hidden=archived;
- document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view!=='archive')b.hidden=archived;});
+ document.querySelectorAll('[data-view]').forEach(b=>{b.hidden=archived&&!['archive','rules'].includes(b.dataset.view);});
  const roundNow=state.boot.currentRound;
  $('#cycles').innerHTML=state.boot.cycles.map(c=>`<button data-cycle="${c.id}" class="${state.cycle===c.id?'active':''}">${c.id}. krug<small>Kola ${c.from}-${c.to}</small></button>`).join('');
  $('#rounds').innerHTML=state.boot.rounds.filter(r=>r.cycle===state.cycle).map(r=>`<button title="${r.locked?'Zakljucano':'Otvoreno'}" data-round="${r.number}" class="${state.round===r.number?'active':''}"><span class="round-status ${r.number===roundNow?'current':r.locked?'closed':'open'}"></span><span>${r.number}</span></button>`).join('');
@@ -81,6 +81,7 @@ function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat<
 async function load(view=state.view,silent=false){
  state.view=view;nav();setMenu(false);const seq=++state.sequence;if(!silent)$('#main').innerHTML='<div class="loading"><div class="spinner"></div>Ucitavam podatke...</div>';
  try{let data;
+  if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
   if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.roundData=data;renderRound(data);}
   if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence)return;renderResults(data);}
@@ -110,9 +111,18 @@ async function liveRefreshTick(){
 setInterval(liveRefreshTick,15000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')liveRefreshTick();});
 
+function doubleBadge(p,label='x2 DOUBLE'){
+ const raw=p?.points,points=typeof raw==='number'||(typeof raw==='string'&&raw.trim()!=='')?Number(raw):NaN;
+ const settled=p?.settled===true||p?.settled===1;
+ const outcome=settled&&Number.isFinite(points)&&points>=0?(points>0?'hit':'miss'):'pending';
+ const description=outcome==='hit'?`Pogođeni DOUBLE · ${points} bodova`:outcome==='miss'?'Promašeni DOUBLE · 0 bodova':'DOUBLE · čeka ishod';
+ const accessibleLabel=label==='x2 DOUBLE'?description:`${label} · ${description}`;
+ return `<span class="double-result double-${outcome}" title="${attr(description)}" aria-label="${attr(accessibleLabel)}">${esc(label)}</span>`;
+}
+
 function fixtureHtml(f,p){const mine=p&&(p.team_id===f.home_id||p.team_id===f.away_id);return `<div class="fixture ${mine?'my-fixture':''}"><div class="home">${esc(f.home_name)}${clubBadge(f.home_name,'fixture-badge')}</div><div class="score">${score(f)}<small>${f.kickoff?esc(formatTime(f.kickoff)):esc(f.status)}</small></div><div class="away">${clubBadge(f.away_name,'fixture-badge')}${esc(f.away_name)}</div></div>`;}
-function pickSummary(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">TVOJ PICK</div>${teamPill(p.team_name)} ${p.is_double?'<span class="pill pink">x2 DOUBLE</span>':''}</div><div class="selected-points">${p.points??'-'}<small>BODOVA</small></div></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}</div>`;}
-function savedOpenPick(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">SPREMLJENI PICK</div>${teamPill(p.team_name)} ${p.is_double?'<span class="pill pink">x2 DOUBLE</span>':''}</div><span class="pill green">SPREMLJENO</span></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}<button type="button" class="primary full" data-action="change-pick">PROMIJENI PICK</button></div>`;}
+function pickSummary(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">TVOJ PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge(p):''}</div><div class="selected-points">${p.points??'-'}<small>BODOVA</small></div></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}</div>`;}
+function savedOpenPick(p,d){if(!p)return '';const fx=d.fixtures.find(f=>f.home_id===p.team_id||f.away_id===p.team_id);return `<div class="selected-summary"><div class="selected-summary-top"><div><div class="small muted">SPREMLJENI PICK</div>${teamPill(p.team_name)} ${p.is_double?doubleBadge({...p,settled:false}):''}</div><span class="pill green">SPREMLJENO</span></div>${fx?`<div class="selected-match"><div class="selected-match-label">TVOJA UTAKMICA</div><div class="selected-match-teams"><div class="selected-match-team">${clubBadge(fx.home_name,'sm')}<strong>${esc(fx.home_name)}</strong></div><div class="selected-match-score">${score(fx)}</div><div class="selected-match-team">${clubBadge(fx.away_name,'sm')}<strong>${esc(fx.away_name)}</strong></div></div></div>`:''}<button type="button" class="primary full" data-action="change-pick">PROMIJENI PICK</button></div>`;}
 function roundPickStats(d){
  if(!d?.round?.locked)return [];
  const counts=new Map();
@@ -192,7 +202,7 @@ function renderRound(d){
  const notPicked=d.players.filter(x=>!x.chosen);
  let right='';
  if(d.round.locked){
-  const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''}"><td><strong>${esc(x.name)}</strong></td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?'<span class="pink">x2 DOUBLE</span>':'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
+  const picksTable=d.players.map(x=>`<tr class="${x.mine?'me':''}"><td><strong>${esc(x.name)}</strong></td><td>${x.pick?teamPill(x.pick.team_name):'<span class="muted">Nije birao</span>'}</td><td>${x.pick?.is_double?doubleBadge(x.pick):'-'}</td><td class="points right">${x.pick?.points??'-'}</td></tr>`).join('');
   right+=`<div class="card"><div class="card-head"><h2>Odabiri igrača</h2><span class="pill">${d.players.filter(x=>x.chosen).length} pickova</span></div><div class="table-wrap"><table><thead><tr><th>Igrač</th><th>Odabir</th><th>DOUBLE</th><th class="right">Bodovi</th></tr></thead><tbody>${picksTable}</tbody></table></div></div>`;
   right+=renderRoundTopScorers(d);
   right+=renderRoundPenas(d);
@@ -204,6 +214,30 @@ function renderRound(d){
  if(roundComplete(d))setTimeout(()=>showRoundWinnerPopup(d),80);
 }
 
+function renderRules(){
+ const season=Number(state.boot.season),label=season+'/'+String((season+1)%100).padStart(2,'0');
+ const previousSeason=season-1,previousLabel=previousSeason+'/'+String(season%100).padStart(2,'0');
+ const cycleRanges=state.boot.cycles.map(c=>`${Number(c.id)}. krug: ${Number(c.from)}.–${Number(c.to)}. kolo`).join(' · ');
+ const teams=[...(state.boot.teams||[])].sort((a,b)=>Number(a.base)-Number(b.base)||String(a.name).localeCompare(String(b.name),'hr'));
+ const teamRows=teams.map(t=>`<tr><td><span class="club-inline">${clubBadge(t.name,'sm')}<strong>${esc(t.name)}</strong></span></td><td class="points right">${Number(t.base)}</td><td class="points right">${Number(t.base)+1}</td></tr>`).join('');
+ $('#main').innerHTML=hero('Pravila i bodovanje','Pravila igre i bodovi ekipa za sezonu '+label,'',season)+`<div class="rules-content">
+  <section class="card"><h2>Kako se igra</h2><ol class="rules-list">
+   <li><strong>Sezona ima 38 kola i četiri kruga.</strong> ${esc(cycleRanges)}.</li>
+   <li>U svakom kolu biraš jednu ekipu. Istu ekipu smiješ odabrati samo jednom unutar istog kruga. U novom krugu sve su ekipe ponovno dostupne.</li>
+   <li><strong>DOUBLE koristiš jednom po krugu.</strong> Njime udvostručuješ konačne bodove osvojene u odabranom kolu.</li>
+   <li>Odabiri se zaključavaju <strong>dva sata prije prve utakmice kola</strong>.</li>
+   <li>Prije zaključavanja tuđi odabiri i DOUBLE ostaju skriveni. Nakon zaključavanja vidljivi su odabiri svih igrača i njihov DOUBLE status.</li>
+   <li>Registraciju novog igrača mora odobriti administrator. Igrač se uključuje tek od sljedećeg kruga.</li>
+  </ol></section>
+  <section class="card"><h2>Bodovanje utakmice</h2><div class="table-wrap"><table class="rules-table"><thead><tr><th scope="col">Rezultat ekipe</th><th scope="col">Kod kuće</th><th scope="col">U gostima</th></tr></thead><tbody>
+   <tr><th scope="row">Pobjeda</th><td>Osnovni bodovi ekipe</td><td>Osnovni bodovi ekipe + 1</td></tr>
+   <tr><th scope="row">Remi</th><td>0</td><td>1</td></tr>
+   <tr><th scope="row">Poraz</th><td>0</td><td>0</td></tr>
+  </tbody></table></div><p>DOUBLE množi konačni rezultat bodovanja s 2. Primjer: ekipa koja vrijedi 5 bodova za pobjedu u gostima donosi 6 bodova, odnosno 12 uz DOUBLE.</p><p class="double-legend" aria-label="Značenje boja za DOUBLE"><span class="double-result double-hit">Pogođeni DOUBLE</span> <span class="double-result double-miss">Promašeni DOUBLE</span> <span class="double-result double-pending">Čeka ishod</span></p></section>
+  <section class="card"><h2>Bodovi ekipa · ${esc(label)}</h2><p>Ekipe su poredane od najmanje prema najviše osnovnih bodova. Tablica prikazuje bodove za pobjedu; remi u gostima donosi 1 bod. DOUBLE udvostručuje osvojene bodove.</p>${teams.length?`<div class="table-wrap"><table class="rules-table"><thead><tr><th scope="col">Ekipa</th><th scope="col" class="right">Pobjeda doma</th><th scope="col" class="right">Pobjeda u gostima</th></tr></thead><tbody>${teamRows}</tbody></table></div>`:empty('Bodovi ekipa trenutačno nisu dostupni.')}</section>
+  <section class="card"><h2>Prošla sezona</h2><p>Pregledaj ukupni poredak igrača i osvojene bodove po krugovima.</p><div class="actions"><button type="button" class="secondary" data-view="archive">Poredak igrača ${esc(previousLabel)}</button><button type="button" class="small-btn" data-action="home">${Number(state.selectedSeason)!==season?'Vrati se u aktualnu sezonu':'Trenutno kolo'}</button></div></section>
+ </div>`;
+}
 function renderArchive(d){
  const label=d.season+'/'+String((Number(d.season)+1)%100).padStart(2,'0');
  const opts=[['all','Ukupna tablica'],['1','1. krug'],['2','2. krug'],['3','3. krug'],['4','4. krug']];
@@ -213,10 +247,10 @@ function renderArchive(d){
 }
 function renderResults(d){
  const cycleBlock=renderCycleWinner(d);
- $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><div class="table-wrap"><table><thead><tr><th>#</th><th>Igrač</th><th>DOUBLE (kolo)</th><th>Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr class="${r.id===state.boot.user.id?'me':''}"><td><span class="pos ${d.cycleInfo?.finished&&r.place===1?'champ':''}">${r.place}</span></td><td><strong>${esc(r.name)}</strong>${r.active?'':' <span class="muted">(neaktivan)</span>'}</td><td>${(r.doubleRounds||[]).map(x=>`<span class="pink">Kolo ${x.round}</span>`).join(', ')||'<span class="muted">–</span>'}</td><td>${(state.scope==='all'?[1,2,3,4]:[Number(state.scope)]).map(c=>r.payments[c]===true?'<span class="green">DA</span>':r.payments[c]===false?'<span class="pink">NE</span>':'-').join(' / ')}</td><td class="points right"><strong>${r.points}</strong></td></tr>`).join('')}</tbody></table></div></div>`;
+ $('#main').innerHTML=hero('Tablica',state.scope==='all'?'Ukupni poredak cijele sezone':`Poredak ${state.scope}. kruga`)+scopeSelect()+cycleBlock+`<div class="card cycle-results-card"><div class="card-head"><h2>${state.scope==='all'?'Ukupna tablica':(d.cycleInfo?.finished?'Rezultat':'Trenutni poredak')+' '+state.scope+'. kruga'}</h2>${state.scope!=='all'?`<span class="pill ${d.cycleInfo?.finished?'green':''}">Kola ${d.cycleInfo?.from||''}–${d.cycleInfo?.to||''}</span>`:''}</div><div class="table-wrap"><table><thead><tr><th>#</th><th>Igrač</th><th>DOUBLE (kolo)</th><th>Uplata${state.scope==='all'?' K1 / K2 / K3 / K4':''}</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr class="${r.id===state.boot.user.id?'me':''}"><td><span class="pos ${d.cycleInfo?.finished&&r.place===1?'champ':''}">${r.place}</span></td><td><strong>${esc(r.name)}</strong>${r.active?'':' <span class="muted">(neaktivan)</span>'}</td><td>${(r.doubleRounds||[]).map(x=>doubleBadge(x,`Kolo ${x.round}`)).join(', ')||'<span class="muted">–</span>'}</td><td>${(state.scope==='all'?[1,2,3,4]:[Number(state.scope)]).map(c=>r.payments[c]===true?'<span class="green">DA</span>':r.payments[c]===false?'<span class="pink">NE</span>':'-').join(' / ')}</td><td class="points right"><strong>${r.points}</strong></td></tr>`).join('')}</tbody></table></div></div>`;
  if(d.cycleInfo?.finished)setTimeout(()=>showCycleWinnerPopup(d),80);
 }
-function renderMine(d){const rows=d.rows.filter(r=>state.scope==='all'||r.cycle===Number(state.scope));$('#main').innerHTML=hero('Moji odabiri','Pregled svih tvojih utakmica i odabira')+scopeSelect()+`<div class="card"><div class="table-wrap"><table><thead><tr><th>Kolo</th><th>Ekipa</th><th>DOUBLE</th><th>Rezultat</th><th class="right">Bodovi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.round_no}</td><td>${teamPill(r.team_name)}</td><td>${r.is_double?'<span class="pink">x2</span>':'-'}</td><td>${r.home_score===null?'-':r.home_score+' : '+r.away_score}</td><td class="points right">${r.points??'-'}</td></tr>`).join('')}</tbody></table></div>${rows.length?'':empty('Nema odabira za ovaj prikaz.')}</div>`;}
+function renderMine(d){const rows=d.rows.filter(r=>state.scope==='all'||r.cycle===Number(state.scope));$('#main').innerHTML=hero('Moji odabiri','Pregled svih tvojih utakmica i odabira')+scopeSelect()+`<div class="card"><div class="table-wrap"><table><thead><tr><th>Kolo</th><th>Ekipa</th><th>DOUBLE</th><th>Rezultat</th><th class="right">Bodovi</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.round_no}</td><td>${teamPill(r.team_name)}</td><td>${r.is_double?doubleBadge(r,'x2'):'-'}</td><td>${r.home_score===null?'-':r.home_score+' : '+r.away_score}</td><td class="points right">${r.points??'-'}</td></tr>`).join('')}</tbody></table></div>${rows.length?'':empty('Nema odabira za ovaj prikaz.')}</div>`;}
 function renderStats(d){const max=Math.max(1,...d.rows.map(r=>r.count));$('#main').innerHTML=hero('Statistika','Koliko je puta koji klub biran')+scopeSelect()+`<div class="card"><div class="pick-stats-list">${d.rows.map(r=>`<div class="pick-stat-row"><div class="pick-stat-club">${clubBadge(r.name,'sm')}<span>${esc(r.name)}</span></div><div class="pick-stat-track"><span style="width:${Math.round(100*r.count/max)}%"></span></div><div class="pick-stat-count">${r.count}</div></div>`).join('')||empty('Jos nema odabira u zakljucanim kolima.')}</div></div>`;}
 function renderStandings(d){$('#main').innerHTML=hero('Premier League uzivo','Poredak iz spremljenih zavrsenih utakmica')+`<div class="card"><div class="table-wrap"><table><thead><tr><th>#</th><th>Klub</th><th>Od.</th><th>P</th><th>N</th><th>I</th><th>Golovi</th><th>GR</th><th class="right">Bodovi</th></tr></thead><tbody>${d.rows.map(r=>`<tr><td><span class="pos">${r.place}</span></td><td><span class="club-inline">${clubBadge(r.name,'sm')}<strong>${esc(r.name)}</strong></span></td><td>${r.played}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td><td>${r.gf}:${r.ga}</td><td>${r.gf-r.ga}</td><td class="points right">${r.points}</td></tr>`).join('')}</tbody></table></div><p class="fine">${esc(d.notice)}</p></div>`;}
 function adminPickEntry(playerId,round){return (state.admin?.picks||[]).find(p=>p.player_id===playerId&&Number(p.round_no)===Number(round))||null;}
@@ -232,7 +266,7 @@ function syncAdminPickEditor(){
  f.elements.double.checked=!!p?.is_double;
  const player=players.find(x=>x.id===state.adminPickPlayerId);
  const info=$('#admin-pick-current');
- if(info)info.innerHTML=p?`Trenutno: <strong>${esc(player?.name||'Igrač')}</strong> / ${state.adminPickRound}. kolo / ${teamPill(p.team_name)}${p.is_double?' <span class="pink">x2 DOUBLE</span>':''}`:`Trenutno: <strong>${esc(player?.name||'Igrač')}</strong> nema spremljen pick u ${state.adminPickRound}. kolu.`;
+ if(info)info.innerHTML=p?`Trenutno: <strong>${esc(player?.name||'Igrač')}</strong> / ${state.adminPickRound}. kolo / ${teamPill(p.team_name)}${p.is_double?' '+doubleBadge(p):''}`:`Trenutno: <strong>${esc(player?.name||'Igrač')}</strong> nema spremljen pick u ${state.adminPickRound}. kolu.`;
  const del=$('[data-action="admin-delete-pick"]');if(del)del.disabled=!p;
 }
 function raceClock(s){return s?new Intl.DateTimeFormat('hr-HR',{timeZone:'Europe/Zagreb',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(Number(s)*1000)):'-';}
@@ -362,7 +396,13 @@ document.addEventListener('change',e=>{if(e.target.id==='theme-select'){const ch
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button');
  if(!b){const menu=$('#team-picker-menu');if(menu&&!e.target.closest('.team-picker-wrap'))menu.classList.remove('open');return;}
- if(b.dataset.view){if(state.selectedSeason!==Number(state.boot.season)){await load('archive');return;}if(b.dataset.view==='results')state.scope=String(state.cycle);await load(b.dataset.view);return;}
+ if(b.dataset.view){
+  const view=b.dataset.view,currentSeason=Number(state.boot.season);
+  if(view==='archive'){if(Number(state.selectedSeason)===currentSeason)state.selectedSeason=currentSeason-1;state.archiveScope='all';await load('archive');return;}
+  if(view==='rules'){await load('rules');return;}
+  if(Number(state.selectedSeason)!==currentSeason){await load('archive');return;}
+  if(view==='results')state.scope=String(state.cycle);await load(view);return;
+ }
  if(b.dataset.cycle){state.cycle=Number(b.dataset.cycle);state.round=state.boot.rounds.find(r=>r.cycle===state.cycle).number;load(state.view==='system'?'system':'round');return;}
  if(b.dataset.round){state.round=Number(b.dataset.round);load(state.view==='system'?'system':'round');return;}
  if(b.dataset.pickTeam){const hidden=$('#pick-team'),label=$('#team-picker-current'),menu=$('#team-picker-menu');hidden.value=b.dataset.pickTeam;label.innerHTML=clubBadge(b.dataset.pickName,'sm')+`<span>${esc(b.dataset.pickName)}</span>`;menu.querySelectorAll('.team-picker-option').forEach(x=>x.classList.toggle('selected',x===b));menu.classList.remove('open');return;}
@@ -437,3 +477,4 @@ document.addEventListener('submit',e=>{
  });
 });
 enter().catch(e=>{showLogin();if(!/Prijavi|Sesija/i.test(e.message))$('#login-error').innerHTML=`<div class="error">${esc(e.message)}</div>`;});
+

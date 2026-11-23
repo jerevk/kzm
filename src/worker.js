@@ -144,7 +144,7 @@ async function roundData(env,u,n){
  const data=await env.DB.batch([
   stmt(env,'SELECT f.*,h.name AS home_name,a.name AS away_name FROM fixtures f JOIN teams h ON h.id=f.home_id JOIN teams a ON a.id=f.away_id WHERE round_no=? ORDER BY kickoff,f.id',n),
   stmt(env,'SELECT rowid AS source_order,id,name,active FROM players WHERE active=1 ORDER BY rowid'),
-  stmt(env,'SELECT player_id,team_id,team_name,is_double,base,points FROM pick_scores WHERE round_no=?',n),
+  stmt(env,`SELECT player_id,team_id,team_name,is_double,base,points,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores WHERE round_no=?`,n),
   stmt(env,'SELECT t.id,t.name,t.base,t.color FROM teams t WHERE NOT EXISTS(SELECT 1 FROM picks p WHERE p.player_id=? AND p.cycle=? AND p.round_no<>? AND p.team_id=t.id) ORDER BY t.base,t.rowid',u.id,r.cycle,n),
   stmt(env,'SELECT COUNT(*) AS count FROM picks WHERE player_id=? AND cycle=? AND round_no<>? AND is_double=1',u.id,r.cycle,n),
   stmt(env,"SELECT value FROM meta WHERE key='player_order'")
@@ -166,8 +166,8 @@ async function resultsData(env,u,scope){
  WHERE u.active=1
  GROUP BY u.id,u.name,u.active`,c.from,c.to);
  const pays=await all(env,'SELECT player_id,cycle,paid FROM payments');
- const doubles=await all(env,'SELECT p.player_id,p.cycle,p.round_no FROM picks p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND(r.deadline<=unixepoch() OR p.player_id=?) ORDER BY p.round_no',c.from,c.to,u.id);
- const ranked=rank(rows.map(r=>({...r,payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no}))})));
+ const doubles=await all(env,`SELECT p.player_id,p.cycle,p.round_no,p.points,p.points IS NOT NULL AND (p.imported_points IS NOT NULL OR p.match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores p JOIN rounds r ON r.number=p.round_no WHERE p.is_double=1 AND p.round_no BETWEEN ? AND ? AND(r.deadline<=unixepoch() OR p.player_id=?) ORDER BY p.round_no`,c.from,c.to,u.id);
+ const ranked=rank(rows.map(r=>({...r,payments:Object.fromEntries(pays.filter(p=>p.player_id===r.id).map(p=>[p.cycle,p.paid===null?null:!!p.paid])),doubles:doubles.filter(p=>p.player_id===r.id).map(p=>p.cycle),doubleRounds:doubles.filter(p=>p.player_id===r.id).map(p=>({cycle:p.cycle,round:p.round_no,points:p.points,settled:!!p.settled}))})));
  let cycleInfo=null;
  if(c.id){
   const endFixtures=await all(env,'SELECT status,home_score,away_score FROM fixtures WHERE round_no=?',c.to);
@@ -184,7 +184,7 @@ async function adminPanel(env){
   stmt(env,'SELECT player_id,cycle,paid FROM payments'),
   stmt(env,"SELECT key,value FROM meta WHERE key IN('picks_enabled','dataset_imported','last_sync','last_sync_error','last_sync_source','registration_open','max_players','api_backoff')"),
   stmt(env,'SELECT a.action,a.target,a.created_at,p.name AS actor FROM audit a LEFT JOIN players p ON p.id=a.actor_id ORDER BY a.id DESC LIMIT 30'),
-  stmt(env,'SELECT p.player_id,p.round_no,p.team_id,p.is_double,t.name AS team_name FROM picks p JOIN teams t ON t.id=p.team_id ORDER BY p.round_no,p.player_id')
+  stmt(env,`SELECT player_id,round_no,team_id,is_double,team_name,points,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores ORDER BY round_no,player_id`)
  ]);
  const settings=Object.fromEntries(data[2].results.map(x=>[x.key,x.value]));
  if(settings.registration_open===undefined)settings.registration_open='1';if(settings.max_players===undefined)settings.max_players='40';
@@ -283,7 +283,7 @@ export async function handle(request,env){
  }
  
  if(path==='/api/stats'&&method==='GET'){const c=scopeRange(url.searchParams.get('scope'));return json({ok:true,rows:await all(env,'SELECT t.name,COUNT(*) AS count FROM picks p JOIN teams t ON t.id=p.team_id JOIN rounds r ON r.number=p.round_no WHERE p.round_no BETWEEN ? AND ? AND r.deadline<=unixepoch() GROUP BY t.id,t.name ORDER BY count DESC,t.name',c.from,c.to)});}
- if(path==='/api/mine'&&method==='GET')return json({ok:true,rows:await all(env,'SELECT round_no,cycle,team_name,is_double,base,points,home_score,away_score,match_status FROM pick_scores WHERE player_id=? ORDER BY round_no',u.id)});
+ if(path==='/api/mine'&&method==='GET')return json({ok:true,rows:await all(env,`SELECT round_no,cycle,team_name,is_double,base,points,home_score,away_score,match_status,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores WHERE player_id=? ORDER BY round_no`,u.id)});
  if(path==='/api/standings'&&method==='GET')return json(await standings(env));
  assert(path.startsWith('/api/admin/'),'Nepoznata adresa.',404);requireAdmin(u);
  if(path==='/api/admin/panel'&&method==='GET')return json(await adminPanel(env));
@@ -447,3 +447,4 @@ export default {
  if(pushConfigured(env))try{await processPush(env);}catch{/* push se ponavlja na sljedecem cron prolazu; kljucevi se ne ispisuju */}
  })());}
 };
+
