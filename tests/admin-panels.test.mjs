@@ -11,7 +11,7 @@ function section(from,to){
 }
 const helpers=section('function adminFormOpen()','function collapseAdminPanels(');
 const loading=section('async function load(','function liveWindowOpen(');
-const refresh=section('async function liveRefreshTick()','setInterval(liveRefreshTick,');
+const refresh=section('async function liveRefreshTick(force=false)','setInterval(liveRefreshTick,');
 function deferred(){let resolve;const promise=new Promise(done=>{resolve=done;});return {promise,resolve};}
 function setup(){
  const state={boot:{},view:'admin',admin:{original:true},sequence:0,busy:false,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[]};
@@ -24,7 +24,7 @@ function setup(){
   api:path=>{ui.requests.push(path);return Promise.resolve({updated:true});},
   renderAdmin:()=>ui.rendered.push({view:'admin',open:[...state.adminOpenPanels]}),
   renderRules:()=>ui.rendered.push({view:'rules'}),
-  liveWindowOpen:()=>false,esc:String,console
+  liveWindowOpen:()=>false,refreshSnapshot:()=>false,esc:String,console,lastBackgroundRefresh:0
  };
  const functions=runInNewContext(helpers+loading+refresh+'; ({rememberAdminPanels,adminFormOpen,load,liveRefreshTick});',context);
  return {state,ui,context,...functions};
