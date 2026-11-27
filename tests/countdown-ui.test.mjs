@@ -13,7 +13,7 @@ function section(from,to){
 }
 const countdown=section('let roundCountdownTimer=','function currentRoute(');
 const loading=section('async function load(','function liveWindowOpen(');
-const refreshing=section('async function liveRefreshTick()','function doubleBadge(');
+const refreshing=section('async function liveRefreshTick(force=false)','function doubleBadge(');
 const round=(overrides={})=>({serverTime:epoch,round:{number:1,deadline:epoch+120,locked:false},myPick:null,...overrides});
 async function settle(){for(let i=0;i<8;i++)await Promise.resolve();}
 
