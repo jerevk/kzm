@@ -404,8 +404,8 @@ check('Finished round labels every picked zero-point player as Pena kola or Pene
  assert(app.includes('<div class="round-top-scorer-points">0<span>bodova</span></div>'));
 });
 
-check('Frontend auto refreshes visible data every 15 seconds and polls live sources only when needed',()=>{
- const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,15000)'));assert(app.includes("['round','results','mine','stats','standings','admin']"));assert(app.includes("if(adminRace||liveWindowOpen())"));assert(app.includes("api('/live/pulse',{})"));assert(app.includes("load(state.view,true)"));assert(app.includes('ESPN i Rezultati.com uspoređuju se tijekom utakmica'));
+check('Frontend refreshes live matches quickly but throttles idle pages and preserves unsaved picks',()=>{
+ const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');assert(app.includes('function liveWindowOpen()'));assert(app.includes('setInterval(liveRefreshTick,15000)'));assert(app.includes("['round','results','mine','stats','standings','admin']"));assert(app.includes('activeLive?15000:60000'));assert(app.includes('pickFormHasUnsavedChanges()'));assert(app.includes('refreshSnapshot(view,data,silent)'));assert(app.includes("api('/live/pulse',{})"));assert(app.includes('load(state.view,true)'));assert(app.includes('ESPN i Rezultati.com uspoređuju se tijekom utakmica'));
 });
 
 check('Admin panel exposes source-race diagnostics and live fallback status',async()=>{const x=await fresh();try{
