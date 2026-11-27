@@ -493,7 +493,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261127-pick-failures1'));
+ assert(html.includes('/app.js?v=20261127-auto-update1'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
@@ -707,4 +707,39 @@ check('Successful pick saves produce no failure log and malformed requests remai
   assert.equal(failure[0].status,400);
   assert.equal(failure[0].reason,'Neispravan DOUBLE.');
  }finally{x.env.DB.close();}
+});
+
+check('Installed Chrome app checks published version on open and resume without touching stored picks',async()=>{
+ const html=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+ const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
+ const checker=scripts.find(x=>x.includes('kzm-version-check'));
+ assert(checker,'Auto-update script should be embedded in the HTML document');
+ assert(html.includes('app.js?v=20261127-auto-update1'));
+ const runningVersion='20261127-auto-update1';
+ const listeners={window:{},document:{}};
+ let fetched=0,reloads=0,storageWrite=0;
+ const storage=new Map();
+ const fakeScript={src:'https://kzm.test/app.js?v='+runningVersion};
+ const document={visibilityState:'visible',querySelector:q=>q.includes('app.js')?fakeScript:null,addEventListener:(name,fn)=>{listeners.document[name]=fn;}};
+ const window={addEventListener:(name,fn)=>{listeners.window[name]=fn;}};
+ const sessionStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>{storage.set(k,v);storageWrite++;}};
+ const location={href:'https://kzm.test/',replace(url){this.lastUrl=url;reloads++;}};
+ const navigator={onLine:true};
+ let htmlVersion=runningVersion;
+ const fetch=async()=>{fetched++;return {ok:true,text:async()=>'<script type="module" src="/app.js?v='+htmlVersion+'"></script>'};};
+ const Date={now:()=>1700000000000+fetched*15000};
+ const URL=globalThis.URL;
+ vm.runInNewContext(checker,{window,document,sessionStorage,location,navigator,fetch,Date,URL,console});
+ const tick=async()=>{await new Promise(resolve=>setImmediate(resolve));};
+ listeners.window.pageshow();await tick();
+ assert.equal(reloads,0,'No reload when published version matches loaded script');
+ htmlVersion='20261127-auto-update2';
+ listeners.document.visibilitychange();await tick();
+ assert.equal(reloads,1,'New version triggers one reload');
+ assert(location.lastUrl.includes('kzm-updated=20261127-auto-update2'));
+ listeners.window.focus();await tick();
+ assert.equal(reloads,1,'Same version does not trigger a reload loop');
+ assert.equal(storageWrite,1);
+ assert.equal(html.includes('localStorage.clear()'),false);
+ assert.equal(html.includes('sessionStorage.clear()'),false);
 });
