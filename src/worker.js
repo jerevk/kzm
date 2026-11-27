@@ -7,6 +7,17 @@ import {pushConfigured,pushSend,pushDiagnostics} from './services/onesignal.js';
 const now=()=>Math.floor(Date.now()/1000);
 const json=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 async function audit(env,u,action,target){await stmt(env,'INSERT INTO audit(actor_id,action,target) VALUES(?,?,?)',u.id,action,String(target)).run();}
+function pickFailureInfo(error){
+ const raw=String(error?.message||'');
+ if(raw.includes('one_double_per_cycle')||(raw.includes('picks.player_id, picks.cycle')&&!raw.includes('team_id')))return {status:409,reason:'DOUBLE je vec iskoristen u ovom krugu.'};
+ if(raw.includes('picks.player_id, picks.cycle, picks.team_id'))return {status:409,reason:'Tu ekipu si vec koristio u ovom krugu.'};
+ if(raw.includes('ROUND_LOCKED'))return {status:423,reason:'Kolo je zakljucano ili nema postavljen rok.'};
+ if(raw.includes('PICKS_DISABLED'))return {status:423,reason:'Odabiri su privremeno zaustavljeni.'};
+ if(raw.includes('PLAYER_INACTIVE'))return {status:403,reason:'Racun je deaktiviran.'};
+ if(error instanceof AppError)return {status:error.status,reason:raw.slice(0,160)};
+ return {status:500,reason:'Greska posluzitelja pri spremanju odabira.'};
+}
+
 async function pushClaim(env,key){const r=await stmt(env,'INSERT OR IGNORE INTO meta(key,value) VALUES(?,?)',key,'sending').run();return Number(r.meta?.changes||0)>0;}
 async function pushDone(env,key,value='sent'){await stmt(env,'UPDATE meta SET value=? WHERE key=?',value,key).run();}
 async function pushRelease(env,key){await stmt(env,"DELETE FROM meta WHERE key=? AND value='sending'",key).run();}
@@ -221,7 +232,8 @@ async function adminPanel(env){
   stmt(env,'SELECT player_id,cycle,paid FROM payments'),
   stmt(env,"SELECT key,value FROM meta WHERE key IN('picks_enabled','dataset_imported','last_sync','last_sync_error','last_sync_source','registration_open','max_players','api_backoff')"),
   stmt(env,'SELECT a.action,a.target,a.created_at,p.name AS actor FROM audit a LEFT JOIN players p ON p.id=a.actor_id ORDER BY a.id DESC LIMIT 30'),
-  stmt(env,`SELECT player_id,round_no,team_id,is_double,team_name,points,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores ORDER BY round_no,player_id`)
+  stmt(env,`SELECT player_id,round_no,team_id,is_double,team_name,points,points IS NOT NULL AND (imported_points IS NOT NULL OR match_status IN('FINISHED','AWARDED')) AS settled FROM pick_scores ORDER BY round_no,player_id`),
+  stmt(env,"SELECT a.created_at,a.target,p.name AS player FROM audit a LEFT JOIN players p ON p.id=a.actor_id WHERE a.action='pick-rejected' ORDER BY a.id DESC LIMIT 100")
  ]);
  const settings=Object.fromEntries(data[2].results.map(x=>[x.key,x.value]));
  if(settings.registration_open===undefined)settings.registration_open='1';if(settings.max_players===undefined)settings.max_players='40';
@@ -233,6 +245,7 @@ async function adminPanel(env){
   settings,
   audit:data[3].results,
   picks:data[4].results,
+  pickFailures:data[5].results.map(row=>{let details={};try{details=JSON.parse(row.target);}catch{}return {player:row.player||'Nepoznat igrac',createdAt:row.created_at,round:Number.isInteger(details.round)?details.round:null,status:Number(details.status)||500,reason:String(details.reason||'Neuspjelo spremanje.').slice(0,160)};}),
   sourceRace:race.rows,
   sourceRaceActive:race.active,
   sourceRaceEspnError:race.espnError,
@@ -300,14 +313,25 @@ export async function handle(request,env){
  const roundMatch=path.match(/^\/api\/round\/(\d+)$/);
  if(roundMatch&&method==='GET')return json(await roundData(env,u,integer(Number(roundMatch[1]),1,38,'kolo')));
  if(path==='/api/pick'&&method==='POST'){
-  const b=await bodyJson(request),n=integer(b.round,1,38,'kolo');assert(typeof b.double==='boolean','Neispravan DOUBLE.');
-  const team=await first(env,'SELECT * FROM teams WHERE id=?',String(b.teamId));assert(team,'Ekipa ne postoji.');
-  // UNIQUE constraints + database-time triggers arbitrate concurrent requests, not the browser.
-  await env.DB.batch([
-   stmt(env,`INSERT INTO picks(player_id,round_no,cycle,team_id,is_double,base) VALUES(?,?,?,?,?,?)
-   ON CONFLICT(player_id,round_no) DO UPDATE SET team_id=excluded.team_id,is_double=excluded.is_double,base=excluded.base,imported_points=NULL,updated_at=unixepoch()`,u.id,n,cycleFor(n),team.id,b.double?1:0,team.base),
-   stmt(env,"INSERT INTO audit(actor_id,action,target) VALUES(?,'pick',?)",u.id,String(n))
-  ]);return json({ok:true});
+  let attemptedRound=null;
+  try{
+   const b=await bodyJson(request);
+   if(Number.isInteger(b?.round)&&b.round>=1&&b.round<=38)attemptedRound=b.round;
+   const n=integer(b.round,1,38,'kolo');assert(typeof b.double==='boolean','Neispravan DOUBLE.');
+   const team=await first(env,'SELECT * FROM teams WHERE id=?',String(b.teamId));assert(team,'Ekipa ne postoji.');
+   // UNIQUE constraints + database-time triggers arbitrate concurrent requests, not the browser.
+   await env.DB.batch([
+    stmt(env,`INSERT INTO picks(player_id,round_no,cycle,team_id,is_double,base) VALUES(?,?,?,?,?,?)
+    ON CONFLICT(player_id,round_no) DO UPDATE SET team_id=excluded.team_id,is_double=excluded.is_double,base=excluded.base,imported_points=NULL,updated_at=unixepoch()`,u.id,n,cycleFor(n),team.id,b.double?1:0,team.base),
+    stmt(env,"INSERT INTO audit(actor_id,action,target) VALUES(?,'pick',?)",u.id,String(n))
+   ]);return json({ok:true});
+  }catch(error){
+   // A failed pick transaction rolls back; this separate audit insert records only the rejection.
+   // Never store passwords, cookies, session tokens, request bodies, or raw database errors.
+   const failure=pickFailureInfo(error);
+   try{await stmt(env,"INSERT INTO audit(actor_id,action,target) VALUES(?,'pick-rejected',?)",u.id,JSON.stringify({round:attemptedRound,status:failure.status,reason:failure.reason})).run();}catch{/* Never change the original save error if logging is unavailable. */}
+   throw error;
+  }
  }
  if(path==='/api/results'&&method==='GET')return json(await resultsData(env,u,url.searchParams.get('scope')));
  if(path==='/api/archive'&&method==='GET'){
