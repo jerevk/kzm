@@ -25,7 +25,7 @@
     // Installed Chrome app: check the currently published assets on launch and resume.
     // Network-only and non-destructive: never touch picks, credentials, or local state.
     (function(){
-      var scriptVersion='20261127-auto-update1';
+      function scriptVersion(){var element=document.querySelector('script[type="module"][src^="/app.js?v="]');return element?new URL(element.src).searchParams.get('v'):null;}
       var lastCheck=0,checking=false;
       function checkPublishedVersion(){
         if(checking||Date.now()-lastCheck<12000||document.visibilityState==='hidden'||!navigator.onLine)return;
@@ -33,8 +33,8 @@
         fetch('/?kzm-version-check='+Date.now(),{cache:'no-store',credentials:'same-origin'})
           .then(function(response){if(!response.ok)throw new Error('Version check unavailable');return response.text();})
           .then(function(markup){
-            var match=markup.match(/<script\\s+type="module"\\s+src="\\/app\\.js\\?v=([^"]+)"/);
-            if(!match||match[1]===scriptVersion)return;
+            var match=markup.match(/<script\s+type="module"\s+src="\/app\.js\?v=([^"]+)"/);
+            if(!match||match[1]===scriptVersion())return;
             // A cached installed app can still be running an older script.
             // Refresh once per observed release, retaining the user's installed app.
             var key='kzm-last-update-attempt';
