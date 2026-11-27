@@ -728,8 +728,8 @@ check('Installed Chrome app checks published version on open and resume without 
  let htmlVersion=runningVersion;
  const fetch=async()=>{fetched++;return {ok:true,text:async()=>'<script type="module" src="/app.js?v='+htmlVersion+'"></script>'};};
  const Date={now:()=>1700000000000+fetched*15000};
- const URL=globalThis.URL;
- vm.runInNewContext(checker,{window,document,sessionStorage,location,navigator,fetch,Date,URL,console});
+ const UrlClass=globalThis.URL;
+ vm.runInNewContext(checker,{window,document,sessionStorage,location,navigator,fetch,Date,URL:UrlClass,console});
  const tick=async()=>{await new Promise(resolve=>setImmediate(resolve));};
  listeners.window.pageshow();await tick();
  assert.equal(reloads,0,'No reload when published version matches loaded script');
