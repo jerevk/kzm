@@ -493,7 +493,7 @@ check('Mobile tabs and overview cards use real logged-in data without altering s
  assert(css.includes('@media(max-width:720px)'));
  assert(css.includes('.mobile-bottom-nav{position:fixed'));
  assert(css.includes(':root[data-theme="dark"] .mobile-bottom-nav'));
- assert(html.includes('/app.js?v=20261127-auto-update1'));
+ assert(html.includes('/app.js?v=20261127-fast-mobile1'));
 });
 
 check('Round overview matches all-season standings and exposes only the logged-in player',async()=>{
@@ -714,7 +714,7 @@ check('Installed Chrome app checks published version on open and resume without 
  const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
  const checker=scripts.find(x=>x.includes('kzm-version-check'));
  assert(checker,'Auto-update script should be embedded in the HTML document');
- assert(html.includes('app.js?v=20261127-auto-update1'));
+ assert(html.includes('app.js?v=20261127-fast-mobile1'));
  const runningVersion='20261127-auto-update1';
  const listeners={window:{},document:{}};
  let fetched=0,reloads=0,storageWrite=0;
