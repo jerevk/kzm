@@ -661,3 +661,50 @@ check('ESPN second half stays LIVE and retains minute instead of becoming PAUSED
   assert.equal(x.env.DB.sqlite.prepare("SELECT value FROM meta WHERE key='live-minute:f1'").get().value,'61');
  }finally{globalThis.fetch=old;x.env.DB.close();}
 });
+
+check('Rejected pick saves are visible to admin, private to players and never mutate valid picks',async()=>{
+ const x=await fresh();
+ try{
+  const okay=await x.call('/pick',{cookie:x.userCookie,body:{round:1,teamId:'t1',double:true}});
+  assert.equal(okay.status,200);
+  const tests=[
+   {round:2,teamId:'t1',double:false,status:409,reason:'Tu ekipu'},
+   {round:2,teamId:'t2',double:true,status:409,reason:'DOUBLE'},
+   {round:2,teamId:'not-a-club',double:false,status:400,reason:'Ekipa ne postoji'},
+  ];
+  for(const tc of tests){
+   const response=await x.call('/pick',{cookie:x.userCookie,body:{round:tc.round,teamId:tc.teamId,double:tc.double}});
+   assert.equal(response.status,tc.status);
+  }
+  x.env.DB.sqlite.exec('UPDATE rounds SET deadline=unixepoch()-1 WHERE number=2');
+  assert.equal((await x.call('/pick',{cookie:x.userCookie,body:{round:2,teamId:'t3',double:false}})).status,423);
+  const panel=await x.call('/admin/panel',{cookie:x.adminCookie});
+  assert.equal(panel.status,200);
+  assert.equal(panel.data.pickFailures.length,4);
+  assert(panel.data.pickFailures.every(r=>r.player==='Demo Player'&&r.round===2&&Number.isInteger(r.createdAt)));
+  for(let i=0;i<tests.length;i++)assert(panel.data.pickFailures.some(r=>r.status===tests[i].status&&r.reason.includes(tests[i].reason)));
+  assert(panel.data.pickFailures.some(r=>r.status===423&&r.reason.includes('zakljucano')));
+  assert(!/password|hash|salt|cookie|token/i.test(JSON.stringify(panel.data.pickFailures)));
+  assert.equal(x.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM picks WHERE player_id=?').get(x.userId).n,1);
+  assert.equal(x.env.DB.sqlite.prepare('SELECT team_id,is_double FROM picks WHERE player_id=? AND round_no=1').get(x.userId).team_id,'t1');
+  assert.equal((await x.call('/admin/panel',{cookie:x.userCookie})).status,403);
+  const ui=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  assert(ui.includes('function pickFailuresHtml(d)'));
+  assert(ui.includes('data-admin-panel="pick-failures"'));
+ }finally{x.env.DB.close();}
+});
+check('Successful pick saves produce no failure log and malformed requests remain safely classified',async()=>{
+ const x=await fresh();
+ try{
+  const valid=await x.call('/pick',{cookie:x.userCookie,body:{round:38,teamId:'t1',double:false}});
+  assert.equal(valid.status,200);
+  assert.equal(x.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM audit WHERE action='pick-rejected'").get().n,0);
+  const invalid=await x.call('/pick',{cookie:x.userCookie,body:{round:38,teamId:'t2',double:'false'}});
+  assert.equal(invalid.status,400);
+  const failure=(await x.call('/admin/panel',{cookie:x.adminCookie})).data.pickFailures;
+  assert.equal(failure.length,1);
+  assert.equal(failure[0].round,38);
+  assert.equal(failure[0].status,400);
+  assert.equal(failure[0].reason,'Neispravan DOUBLE.');
+ }finally{x.env.DB.close();}
+});
