@@ -8,6 +8,21 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const attr=esc;
 const state={selectedSeason:2026,archiveScope:'all',boot:null,view:'round',round:1,cycle:1,scope:'1',roundData:null,admin:null,teams:null,passwordTarget:null,sequence:0,busy:false,loginPlayers:[],editingPick:null,pushDiagnostics:null,adminPickPlayerId:null,adminPickRound:null,registration:null,liveRefreshing:false,adminPanelView:null,adminOpenPanels:[],dashboard:null};
 let roundCountdownTimer=null,roundCountdownContext=null;
+let lastBackgroundRefresh=0,lastRenderSnapshot=null,lastRenderKey='';
+function refreshSnapshot(view,data,silent=false){
+ // Ignore the moving server clock; it is already handled by the local countdown.
+ const key=view+'|'+state.round+'|'+state.scope+'|'+state.selectedSeason;
+ const next=JSON.stringify(data,(field,value)=>field==='serverTime'?null:value);
+ if(silent&&lastRenderKey===key&&lastRenderSnapshot===next)return true;
+ lastRenderKey=key;lastRenderSnapshot=next;return false;
+}
+function pickFormHasUnsavedChanges(){
+ const form=$('#pick-form');if(!form)return false;
+ const selected=form.querySelector('#pick-team')?.value||'';
+ const previous=state.roundData?.myPick?.team_id||'';
+ const doubled=!!form.elements.double?.checked;
+ return state.editingPick===state.round||selected!==previous||doubled!==!!state.roundData?.myPick?.is_double||!!form.querySelector('.team-picker-menu.open');
+}
 function stopRoundCountdown(){if(roundCountdownTimer!==null)clearInterval(roundCountdownTimer);roundCountdownTimer=null;}
 function rememberRoundClock(d){
  const key=String(d.round.number)+'|'+String(d.round.deadline);
@@ -27,7 +42,7 @@ function updateRoundCountdown(){
  if(note&&note.textContent!==noteText)note.textContent=noteText;
  if(countdown.status==='locked'&&!d.round.locked){
   document.querySelectorAll('#pick-form input, #pick-form button, [data-action="change-pick"]').forEach(control=>{control.disabled=true;});
-  if(!clock.refreshRequested&&!state.busy&&!state.liveRefreshing){clock.refreshRequested=true;liveRefreshTick().catch(error=>{if(state.boot&&state.view==='round')toast(error.message||'Osvježi prikaz kola.');});}
+  if(!clock.refreshRequested&&!state.busy&&!state.liveRefreshing){clock.refreshRequested=true;liveRefreshTick(true).catch(error=>{if(state.boot&&state.view==='round')toast(error.message||'Osvježi prikaz kola.');});}
  }
 }
 function startRoundCountdown(d){
@@ -148,8 +163,9 @@ async function enter(restoreHistory=true){
  $('#user-name').textContent=state.boot.user.name;$('#drawer-user').textContent=state.boot.user.name;
  $('#loading').hidden=true;$('#login').hidden=true;$('#app').hidden=false;
  await load(state.view,false,'skip');
+ lastBackgroundRefresh=Date.now();
  if(state.boot?.wakeUp?.active)setTimeout(()=>{if(state.boot)showWakeUpPopup(state.boot.wakeUp.message||'Magarac jedan probudi se!');},120);
- setTimeout(liveRefreshTick,1000);initPushUser();
+ initPushUser();
 }
 function scopeSelect(){return `<div class="scope-wrap"><label>Prikaži rezultat</label><select class="scope" aria-label="Odabir kruga" id="scope">${[1,2,3,4].map(c=>`<option value="${c}" ${state.scope===String(c)?'selected':''}>Krug ${c} · kola ${state.boot.cycles.find(x=>x.id===c)?.from||''}–${state.boot.cycles.find(x=>x.id===c)?.to||''}</option>`).join('')}<option value="all" ${state.scope==='all'?'selected':''}>Ukupna tablica · sva 4 kruga</option></select></div>`;}
 async function load(view=state.view,silent=false,historyMode='push'){
@@ -162,12 +178,12 @@ async function load(view=state.view,silent=false,historyMode='push'){
  try{let data;
   if(view==='rules'){renderRules();}
   if(view==='archive'){data=await api('/archive?season='+state.selectedSeason+'&scope='+state.archiveScope);if(seq!==state.sequence)return;renderArchive(data);}
-  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence)return;state.dashboard=data.overview||null;state.roundData=data;rememberRoundClock(data);renderRound(data);}
-  if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence)return;renderResults(data);}
-  if(view==='mine'){data=await api('/mine');if(seq!==state.sequence)return;renderMine(data);}
-  if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence)return;renderStats(data);}
-  if(view==='standings'){data=await api('/standings');if(seq!==state.sequence)return;renderStandings(data);}
-  if(view==='admin'){data=await api('/admin/panel');if(seq!==state.sequence||silent&&(state.busy||adminFormOpen()))return;state.admin=data;renderAdmin();}
+  if(view==='round'){data=await api('/round/'+state.round);if(seq!==state.sequence||refreshSnapshot(view,data,silent))return;state.dashboard=data.overview||null;state.roundData=data;rememberRoundClock(data);renderRound(data);}
+  if(view==='results'){data=await api('/results?scope='+state.scope);if(seq!==state.sequence||refreshSnapshot(view,data,silent))return;renderResults(data);}
+  if(view==='mine'){data=await api('/mine');if(seq!==state.sequence||refreshSnapshot(view,data,silent))return;renderMine(data);}
+  if(view==='stats'){data=await api('/stats?scope='+state.scope);if(seq!==state.sequence||refreshSnapshot(view,data,silent))return;renderStats(data);}
+  if(view==='standings'){data=await api('/standings');if(seq!==state.sequence||refreshSnapshot(view,data,silent))return;renderStandings(data);}
+  if(view==='admin'){data=await api('/admin/panel');if(seq!==state.sequence||silent&&(state.busy||adminFormOpen())||refreshSnapshot(view,data,silent))return;state.admin=data;renderAdmin();}
   if(view==='system'){const x=await Promise.all([api('/admin/teams'),api('/round/'+state.round),api('/admin/points-diagnostics?round='+state.round)]);if(seq!==state.sequence)return;state.teams=x[0].teams;state.roundData=x[1];state.pointsDiagnostics=x[2];renderSystem();}
  }catch(e){if(!silent&&seq===state.sequence)$('#main').innerHTML=`<div class="error" role="alert">${esc(e.message)}</div><button data-action="refresh">Pokusaj ponovno</button>`;}
 }
@@ -175,21 +191,27 @@ function liveWindowOpen(){
  const now=Math.floor(Date.now()/1000);
  return (state.roundData?.fixtures||[]).some(f=>Number(f.manual_score)!==1&&Number(f.kickoff)>0&&Number(f.kickoff)<=now&&Number(f.kickoff)>=now-4*60*60);
 }
-async function liveRefreshTick(){
+async function liveRefreshTick(force=false){
  if(document.visibilityState==='hidden'||!state.boot||state.busy||state.liveRefreshing)return;
  if(!['round','results','mine','stats','standings','admin'].includes(state.view))return;
  if(state.view==='admin'&&adminFormOpen())return;
- const adminRace=state.view==='admin'&&Number(state.admin?.sourceRaceActive||0)>0;
+ // Never replace the form while someone is choosing a team or editing DOUBLE.
+ if(state.view==='round'&&pickFormHasUnsavedChanges())return;
+ const activeLive=state.view==='admin'&&Number(state.admin?.sourceRaceActive||0)>0||liveWindowOpen();
+ // Keep live scoring responsive; other screens need no full reload every 15 seconds.
+ const refreshInterval=activeLive?15000:60000;
+ if(!force&&Date.now()-lastBackgroundRefresh<refreshInterval)return;
+ lastBackgroundRefresh=Date.now();
  state.liveRefreshing=true;
  try{
-  if(adminRace||liveWindowOpen()){
+  if(activeLive){
    try{await api('/live/pulse',{});}catch(e){console.warn('KZM live pulse:',e?.message||e);}
   }
   await load(state.view,true);
  }finally{state.liveRefreshing=false;}
 }
 setInterval(liveRefreshTick,15000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){updateRoundCountdown();liveRefreshTick();}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){updateRoundCountdown();liveRefreshTick(true);}});
 
 function doubleBadge(p,label='x2 DOUBLE'){
  const raw=p?.points,points=typeof raw==='number'||(typeof raw==='string'&&raw.trim()!=='')?Number(raw):NaN;
