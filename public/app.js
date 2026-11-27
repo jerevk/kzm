@@ -543,6 +543,13 @@ function pushDiagnosticsHtml(){
  return `<div class="card" data-admin-panel="push-notifications">${head}<p class="fine"><strong>${ok}/${rows.length}</strong> aktivnih igraca trenutno ima barem jednu aktivnu OneSignal push pretplatu povezanu s KZM external ID-em.</p><div class="table-wrap"><table><thead><tr><th>Igrac</th><th>OneSignal</th><th>Test</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
 
+function pickFailuresHtml(d){
+ const items=Array.isArray(d.pickFailures)?d.pickFailures:[];
+ const rows=items.map(x=>`<tr><td>${formatTime(x.createdAt)}</td><td><strong>${esc(x.player)}</strong></td><td>${x.round===null?'–':Number(x.round)+'.'}</td><td>${esc(x.reason)}</td><td>${Number(x.status)}</td></tr>`).join('');
+ return `<div class="card" data-admin-panel="pick-failures"><div class="card-head"><h2>Neuspjela spremanja pickova</h2><span class="pill ${items.length?'pink':''}">${items.length} zapisa</span></div>
+ <p class="fine">Zadnjih 100 odbijenih pokušaja koje je zaprimio server. Bilježi se igrač, kolo, vrijeme i razlog. PIN-ovi i podaci prijave ne spremaju se. Ako zahtjev zbog prekida veze nije stigao do servera, ne može se pojaviti ovdje. Evidencija počinje od uvođenja ove funkcije.</p>
+ <div class="table-wrap"><table><thead><tr><th>Vrijeme</th><th>Igrač</th><th>Kolo</th><th>Razlog</th><th>HTTP</th></tr></thead><tbody>${rows||'<tr><td colspan="5">Nema zabilježenih odbijenih spremanja.</td></tr>'}</tbody></table></div></div>`;
+}
 function renderAdmin(){
  rememberAdminPanels('admin');
  const d=state.admin;
@@ -563,6 +570,7 @@ function renderAdmin(){
    <div><label>&nbsp;</label><button class="primary full" type="submit">SPREMI REGISTRACIJU</button></div>
   </form><p class="fine">Limit uključuje aktivne igrače i odobrene igrače koji čekaju početak sljedećeg kruga. Neodobreni zahtjevi ne zauzimaju mjesto i nikad ne daju trenutačan pristup igri.</p></div>`+
  registrationRequestCard(d)+
+ pickFailuresHtml(d)+
  `<div class="card" data-admin-panel="archive-import"><h2>Arhiva 2025/26</h2><p>Podaci iz dostavljenih fotografija: 1., 2., 3. i 4. krug te ukupni poredak. Uvoz ne mijenja bodove ni odabire aktualne sezone.</p><button type="button" class="primary" data-action="import-archive-2025">UVEZI PROŠLU SEZONU</button></div>`+
  `<div class="card" data-admin-panel="pick-correction"><div class="card-head"><h2>Ispravi pick igrača</h2><span class="pill pink">ADMIN ISPRAVAK</span></div>
   <p class="fine">Za pogrešno spremljene pickove. Radi i nakon zaključavanja kola. Pravilo jedne ekipe i jednog DOUBLE-a po krugu i dalje vrijedi, a svaka promjena ulazi u zapis promjena.</p>
