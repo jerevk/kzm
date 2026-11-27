@@ -21,10 +21,41 @@
       document.documentElement.style.colorScheme=dark?'dark':'light';
     })();
   </script>
-  <link rel="stylesheet" href="/style.css?v=20261123-mobile-nav5">
+  <script>
+    // Installed Chrome app: check the currently published assets on launch and resume.
+    // Network-only and non-destructive: never touch picks, credentials, or local state.
+    (function(){
+      var scriptVersion='20261127-auto-update1';
+      var lastCheck=0,checking=false;
+      function checkPublishedVersion(){
+        if(checking||Date.now()-lastCheck<12000||document.visibilityState==='hidden'||!navigator.onLine)return;
+        lastCheck=Date.now();checking=true;
+        fetch('/?kzm-version-check='+Date.now(),{cache:'no-store',credentials:'same-origin'})
+          .then(function(response){if(!response.ok)throw new Error('Version check unavailable');return response.text();})
+          .then(function(markup){
+            var match=markup.match(/<script\\s+type="module"\\s+src="\\/app\\.js\\?v=([^"]+)"/);
+            if(!match||match[1]===scriptVersion)return;
+            // A cached installed app can still be running an older script.
+            // Refresh once per observed release, retaining the user's installed app.
+            var key='kzm-last-update-attempt';
+            if(sessionStorage.getItem(key)===match[1])return;
+            sessionStorage.setItem(key,match[1]);
+            var url=new URL(location.href);
+            url.searchParams.set('kzm-updated',match[1]);
+            location.replace(url.toString());
+          })
+          .catch(function(){/* Keep working if offline or the version endpoint is unavailable. */})
+          .finally(function(){checking=false;});
+      }
+      window.addEventListener('pageshow',checkPublishedVersion);
+      document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')checkPublishedVersion();});
+      window.addEventListener('focus',checkPublishedVersion);
+    })();
+  </script>
+  <link rel="stylesheet" href="/style.css?v=20261127-auto-update1">
   <link rel="manifest" href="/manifest.webmanifest">
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script type="module" src="/app.js?v=20261127-pick-failures1"></script>
+  <script type="module" src="/app.js?v=20261127-auto-update1"></script>
 </head>
 <body>
   <div id="loading" class="loading-screen">
